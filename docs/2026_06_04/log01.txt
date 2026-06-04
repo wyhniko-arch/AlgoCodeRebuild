@@ -210,7 +210,7 @@ Author: Nolan Niko <wyhniko@gmail.com>
 Date:   Thu Jun 4 20:53:38 2026 +0800
 
     feat: 初始化渐进式多模块架构及游戏核心骨架
-但看数量上没毛病，我也没有让AI进行进一步检查，推送至 GitHub：
+单看数量上没毛病，我也没有让AI进行进一步检查，推送至 GitHub：
 git remote add origin https://github.com/wyhniko-arch/AlgoCodeRebuild.git
 git push -u origin main
 现象如下：
@@ -226,8 +226,6 @@ remote: Resolving deltas: 100% (12/12), done.
 To https://github.com/wyhniko-arch/AlgoCodeRebuild.git
  * [new branch]      main -> main
 branch 'main' set up to track 'origin/main'.
-
-
 
 
 

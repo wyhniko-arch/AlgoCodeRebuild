@@ -1,0 +1,372 @@
+# 2026.06.04 21:14
+接下来的任务是加入解析JSON的仓库。
+首先需要对之前的工作进行总结，我使用了AI打底稿，AI是Gemini，然后我人工审核了一遍，结果如下：
+
+工程基础设施状态（已确立的防污染边界）
+1. 规范化硬约束（注意：此内容后续如无必要不可更改，至少不能删减）
+    构建拓扑：
+        采用渐进式多模块Gradle架构。根项目为AlgoCodeRebuild，当前注册子模块为game-core。
+    编译环境：
+        JDK 21编译器，构建工具版本指定为Gradle 8.9。
+    版本控制规范：
+        本地与远端分支均确立为main，已成功建立上游追踪（origin/main）。
+        首期提交已固化，满足Conventional Commits规范。
+    环境锁死规则：
+        .gitignore拦截了.gradle/、build/、二进制.class以及本地IDE缓存，确保构建期无物理污染。
+        .gitattributes锁死了换行符：gradlew为LF，gradlew.bat为CRLF，*.properties为LF。
+2. 可变配置变量
+    外部依赖：game-core当前声明引入了com.google.code.gson:gson:2.10.1序列化库（处于未调用状态）
+    以及JUnit 5.10.0测试框架。
+
+引擎内核架构状态，即代码拓扑与生命周期如下：
+    1. 规范化硬约束，即核心设计模式与控制流，系统遵循单向依赖与控制反转（消除歧义：即IoC）的架构规范，
+    运行期严禁产生循环依赖。
+    [Core] ──(持有)──> [RuntimeContext] ──(隔离)──> [游戏对象实例池]
+     │                          │
+     ├─(滑动匹配)─> [InstructionDefinition] (Pattern 分片)
+     │
+     └─(二级路由)─> [Abstract] ──(动态反射)──> [StructureMethod] (原子逻辑)
+    字符串解析规范：
+        完全废弃java.util.regex.*正则表达式，改用游标滑动滑动匹配算法，在Core中统一完成操作数提取，
+        向下分发纯净的args[]参数数组。
+    时间复杂度约束：
+        指令注册检索：
+            利用HashMap维持O(1)本地定位。
+        词法联想与补全：
+            利用前缀树（学英语：Trie）机制维持O(L)时间复杂度（其中L为输入字符串长度）。
+    生命周期分步：
+        阶段一（初始化）：
+            加载配置》物理结构注册与默认指令挂载》玩家配额赋权与动态加载》执行系统初始预设语句。
+        阶段二（大循环）：
+            状态重置》词法监听与UI模拟》语句解析与路由》系统判定校验》缓冲区清洗。
+
+    2. 随具体实现变化的变量具体数据结构拓扑：
+        当前物理存在的二级路由实现为FakeQueue（队列实现簇）与FakeStack（栈实现簇），
+        其各自持有的原子执行单元（如Add.java, Push.java）作为插件化变量可无限横向扩展。
+
+当前内存状态剪枝（学英语：Gap Analysis）
+    目前阻碍引擎进入完全体运行的核心物理瓶颈（即后续开发的切入点）在于：
+        数据源硬编码：
+            当前阶段对resources/Structure/及levels/目录下的JSON路由表
+            （registry.json, methodRegistry.json, 001.json）尚未建立真正的文件输入流解析，
+            目前依靠代码内的临时硬编码方法维持运转。
+    下一步演进目标：
+        保持现有Core到Abstract的控制流规范不变，利用已引入的Gson库，编写配置加载器
+        （如LevelLoader或内置解析私有方法），将静态JSON资产中的类路径映射关系、关卡配额指标，
+        动态反序列化为运行期的InstructionDefinition实例及反射目标。
+
+# 2026.06.04 21:40
+在开始写代码之前，我们需要先让它运行起来。那么首先注意到Main上的Run|Debug消失了，说明可能运行的逻辑已经变了，
+那么必须先系统性地学习一下。
+原因是，由于将项目重构为渐进式多模块Gradle架构后，本地IDE（即VSCode的Java语言服务器）的缓存元数据滞后，
+未能即时与最新的Gradle项目生命周期拓扑同步，导致其暂时失去了对入口类（Entry Point）的上下文识别。
+
+gradle build 执行后的产物性质分析
+
+当在多模块根目录下执行gradle build时，Gradle会严格按照生命周期顺序，
+并行或串行触发各子模块的compileJava、processResources、classes以及jar等一系列标准化Task。
+最终的物理产物会严格输出到子模块的构建目录下：game-core/build/libs/game-core.jar。
+
+在默认配置下，这个生成的game-core.jar是一个普通JAR文件（学专业术语：Plain JAR）。
+它存在两个直接影响运行的缺陷：
+缺少清单属性：其内部的META-INF/MANIFEST.MF文件中不包含Main-Class属性（即未指定谁是启动类）。
+缺少依赖解包：它只包含game-core内部的编译字节码，并未将build.gradle中声明的Gson依赖库融合进去（并不是一个Fat JAR）。
+因此，如果在终端中直接执行java -jar game-core/build/libs/game-core.jar，JVM大环境会直接抛出以下错误而拒绝运行：
+no main manifest attribute, in game-core/build/libs/game-core.jar
+
+解决方案：
+有三种解决方案，一种是配置IDE语言服务器，一种是引入application插件，一种是通过类路径显式驱动。
+那么第一种显然就是让IDE适应当前这个环境，我自己编译能过，但是其他开发者可能还得自己配，就很傻逼；
+最后一种你不觉得很low吗？我都用构建工具了，最后一种纯纯脱离构建工具。
+所以肯定用第二种方法。
+名机名言：“在多模块软件工程中，最严谨的运行方式是不依赖任何特定的IDE按钮，
+而是将‘可执行变量’直接写入构建脚本中。——Gemini”
+
+# 2026.06.04 21:50
+打开子模块game-core的build.gradle文件，在相应位置补充application插件与主类路由声明
+首先，在plugins的大括号里增加id 'application'，即
+plugins {
+    id 'java'
+    // 引入应用程序插件
+    id 'application'
+}
+紧接着在下面加上：
+// 显式指定大环境下的程序启动入口
+application {
+    mainClass = 'com.algoblock.Main'
+}
+保存配置后，在项目的根目录终端中，直接调用Gradle包装器执行：
+./gradlew :game-core:run
+注：:game-core:run中的冒号是Gradle多模块定位的不可变规范，代表精确指示game-core子模块执行运行任务。
+此方式会自动处理Classpath，即使后续代码真正调用了Gson依赖，也不会发生ClassNotFoundException。
+
+# 2026.06.04 22:00
+出现问题，现象如下：
+PS D:\Programing\AlgoCodeRebuild> ./gradlew :game-core:run
+
+> Task :game-core:run FAILED
+Hello, World! Engine Starting...
+
+[Debug] === 锟阶讹拷一: 锟斤拷锟斤拷锟斤拷锟斤拷峁癸拷锟斤拷锟截伙拷锟斤拷指锟斤拷 ===
+[Debug] -> [Queue] 锟缴癸拷锟斤拷锟斤拷预锟斤拷指锟斤拷: init_full | Pattern: Queue(@,(@))
+[Debug] -> [Queue] 锟缴癸拷锟斤拷锟斤拷预锟斤拷指锟斤拷: equal | Pattern: Queue.equal(@,@)
+[Debug] -> [Queue] 锟缴癸拷锟斤拷锟斤拷预锟斤拷指锟斤拷: init_empty | Pattern: Queue(@)
+[Debug] -> [Queue] 锟缴癸拷锟斤拷锟斤拷预锟斤拷指锟斤拷: copy | Pattern: Queue(@).copy(@)
+[Debug] -> [Queue] 锟缴癸拷锟斤拷锟斤拷预锟斤拷指锟斤拷: delete | Pattern: Queue(@).delete
+[Debug] -> [Stack] 锟缴癸拷锟斤拷锟斤拷预锟斤拷指锟斤拷: init_full | Pattern: Stack(@,(@))
+[Debug] -> [Stack] 锟缴癸拷锟斤拷锟斤拷预锟斤拷指锟斤拷: equal | Pattern: Stack.equal(@,@)
+[Debug] -> [Stack] 锟缴癸拷锟斤拷锟斤拷预锟斤拷指锟斤拷: init_empty | Pattern: Stack(@)
+[Debug] -> [Stack] 锟缴癸拷锟斤拷锟斤拷预锟斤拷指锟斤拷: copy | Pattern: Stack(@).copy(@)
+[Debug] -> [Stack] 锟缴癸拷锟斤拷锟斤拷预锟斤拷指锟斤拷: delete | Pattern: Stack(@).delete
+
+[Debug] === 锟阶段讹拷: 锟斤拷锟斤拷锟斤拷权锟斤拷锟斤拷锟斤拷锟斤拷权锟斤拷 / 锟斤拷态锟斤拷取锟斤拷指锟斤拷 ===
+[Debug] 锟斤拷锟斤拷锟斤拷权锟藉单: 锟结构[Stack] - 指锟斤拷[push] -> 锟斤拷权锟斤拷锟? 0
+[Debug]   |- 预锟借缓锟斤拷匹锟斤拷锟斤拷锟? false
+[Debug]   |- 锟斤拷锟斤拷锟斤拷锟铰诧拷芄锟斤拷锟斤拷锟斤拷锟斤拷锟?
+                                                                    [Debug]   |- 锟阶诧拷芄锟斤拷锟斤拷锟斤拷锟斤拷亟锟斤拷: true
+[Debug]   |- [锟斤拷锟絔 指锟斤拷锟窖督讯锟教拷锟阶帮拷锟斤拷锟斤拷锟斤拷锟斤拷. Pattern: Stack(@).push
+[Debug] 锟斤拷锟斤拷锟斤拷权锟藉单: 锟结构[Queue] - 指锟斤拷[pop] -> 锟斤拷权锟斤拷锟? 6
+[Debug]   |- 预锟借缓锟斤拷匹锟斤拷锟斤拷锟? false
+[Debug]   |- 锟斤拷锟斤拷锟斤拷锟铰诧拷芄锟斤拷锟斤拷锟斤拷锟斤拷锟?
+                                                                    [Debug]   |- 锟阶诧拷芄锟斤拷锟斤拷锟斤拷锟斤拷亟锟斤拷: true
+[Debug]   |- [锟斤拷锟絔 指锟斤拷锟窖讹拷态锟斤拷装锟斤拷锟斤拷锟斤拷锟斤拷锟? Pattern: Queue(@).pop
+[Debug] 锟斤拷锟斤拷锟斤拷权锟藉单: 锟结构[Queue] - 指锟斤拷[add] dd] -> 锟斤拷权锟斤拷锟? 6
+[Debug]   |- 预锟借缓锟斤拷匹锟斤拷锟斤拷锟? false
+[Debug]   |- 锟斤拷锟斤拷锟斤拷锟铰诧拷芄锟斤拷锟斤拷锟斤拷锟斤拷锟?
+                                                                    [Debug]   |- 锟阶诧拷芄锟斤拷锟斤拷锟斤拷锟斤拷亟锟斤拷: true
+[Debug]   |- [锟斤拷锟絔 指锟斤拷锟窖讹拷态锟斤拷装锟斤拷锟斤拷锟斤拷锟斤拷锟? Pattern: Queue(@).add
+[Debug] 锟斤拷锟斤拷锟斤拷权锟藉单: 锟结构[Stack] - 指锟斤拷[pop] -> 锟斤拷权锟斤拷锟? 0
+[Debug]   |- 预锟借缓锟斤拷匹锟斤拷锟斤拷锟? false
+[Debug]   |- 锟斤拷锟斤拷锟斤拷锟铰诧拷芄锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟?
+                                                                          [Debug]   |- 锟阶诧拷芄锟斤拷锟斤拷锟斤拷锟斤拷亟锟斤拷: true
+[Debug]   |- [锟斤拷锟絔 指锟斤拷锟窖讹拷态锟斤拷装锟斤拷锟斤拷锟斤拷锟斤拷锟? Pattern: Stack(@).pop
+
+--- 锟斤拷始锟斤拷锟阶讹拷 ---
+[Debug] >>> 锟斤拷锟芥开始路锟缴凤拷锟斤拷锟斤拷锟? Queue(A,(1,2,3,4)) | 执锟斤拷锟斤拷锟斤拷: 系统
+[Debug] -> O(1) 预锟届定位锟斤拷锟斤拷锟斤拷锟结构锟斤拷 ID 为: Queue
+[Debug] -> [匹锟斤拷晒锟絔 锟缴癸拷锟斤拷锟斤拷指锟斤拷!
+[Debug]    |- 锟结构 ID: Queue
+[Debug]    |- 指锟斤拷 ID: init_it_full
+[Debug]    |- Pattern: Queue(@,(@))
+[Debug]    |- 锟斤拷取锟斤拷锟斤拷: [A, 1,2,3,4]
+[Debug] -> 锟斤拷锟斤拷锟斤拷锟接结构 [Queue] 锟阶筹拷 executeInstruction 锟斤拷锟斤拷
+[Debug] [Context] 注锟斤拷锟斤拷戏锟斤拷锟斤拷: Queue -> A
+[Debug] >>> 锟斤拷锟芥开始路锟缴凤拷锟斤拷锟斤拷锟? Stack(B) | 执锟斤拷锟斤拷锟斤拷: 系统
+[Debug] -> O(1) 预锟届定位锟斤拷锟斤拷锟斤拷锟结构锟斤拷 ID 为: Stack
+[Debug] -> [匹锟斤拷晒锟絔 锟缴癸拷锟斤拷锟斤拷指锟斤拷!
+[Debug]    |- 锟结构 ID: Stack
+[Debug]    |- 指革拷锟?ID: init_empty
+[Debug]    |- Pattern: Stack(@)
+[Debug]    |- 锟斤拷取锟斤拷锟斤拷: [B]
+[Debug] -> 锟斤拷锟斤拷锟斤拷锟接结构 [Stack] 锟阶筹拷 executeInstruction 锟斤拷锟斤拷
+[Debug] [Context] 注锟斤拷锟斤拷戏锟斤拷锟斤拷: Stack -> B
+
+--- 锟斤拷锟斤拷乜锟斤拷锟窖拷锟?---
+
+[锟斤拷锟斤拷1] 锟斤拷锟斤拷锟斤拷戏锟斤拷锟斤拷栈锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷
+[锟斤拷锟斤拷2] 锟饺达拷一锟斤拷锟斤拷锟斤拷锟斤拷锟?(锟斤拷锟斤拷锟诫单锟街凤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟?[tab, del, enter, up, dow down]):
+> Queue(Exception in thread "main" java.util.NoSuchElementException: No line found
+        at java.base/java.util.Scanner.nextLine(Scanner.java:1660)
+        at com.algoblock.Core.interactiveReadCommand(Core.java:370)
+        at com.algoblock.Core.run(Core.java:415)
+        at com.algoblock.Main.main(Main.java:10)
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':game-core:run'.
+> Process 'command 'D:\Scoop\apps\temurin21-jdk\current\bin\java.exe'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 3s
+3 actionable tasks: 2 executed, 1 up-to-date
+PS D:\Programing\AlgoCodeRebuild> 
+
+
+让我请Gemini来解答一下：
+
+日志中暴露了两个独立的问题。一个是导致程序崩溃的异常，另一个是终端编码错乱。
+以下是针对这两个问题的工程定位。
+
+1. 异常：java.util.NoSuchElementException: No line found
+问题定位与原理解析
+异常堆栈精确指向了 Core.java:370 的 scanner.nextLine()。
+这是由于，当使用./gradlew :game-core:run启动程序时，Gradle并不是在当前终端直接运行代码，
+而是分叉（学英语：这里的分叉也叫做Fork）出了一个独立的后台JVM进程来执行Main类。
+在操作系统层面的默认安全与进程管理规范中，后台进程是无法直接读取宿主终端的标准输入流（即System.in）的。
+
+从Core的视角来看，System.in处于一种“被切断”或“立刻到达文件尾（文件尾，没错，就是EOF）”的状态。
+因此，当Scanner尝试读取下一行时，由于流中没有任何数据，直接抛出了该异常。
+
+解决方案
+在game-core/build.gradle中显式声明，将宿主终端的输入流桥接（学英语：Pipe）给Gradle运行的那个JVM进程。
+
+2. 视觉污染：控制台中文乱码（锟阶讹拷一...）
+问题定位与原理解析
+日志中原本应该输出 [Debug] === 阶段一... 的地方变成了“锟斤拷”。这被称为“GBK 烫烫烫/锟斤拷锟斤拷”现象。
+代码文件由于之前在工作区锁定了编码，是纯净的UTF-8。但是，在Windows系统的底层大环境中，
+默认的活动代码页（学英语：Code Page）通常是 CP936 (即GBK)。
+
+JVM在编译或运行时，默认采用了Windows环境的GBK编码去读取UTF-8源码或向控制台输出流，
+由于字符映射表对齐失败，产生了乱码。
+
+解决方案
+必须在Gradle脚本中强约束Java编译任务以及JVM运行时的字符集变量，
+使其无论在什么操作系统下，都绝对采用UTF-8。
+
+接下来就是具体的操作。修改game-core/build.gradle，
+打开现有的game-core/build.gradle，在文件最底部追加以下两个闭包配置。
+这属于Gradle的Task级配置规范（是人话吗）：
+
+// ==========================================
+// 运行环境配置变量
+// ==========================================
+tasks.named('run') {
+    // 【修复崩溃】将宿主终端的标准输入流 (System.in) 物理映射到运行中的 JVM 进程
+    standardInput = System.in
+    // 【修复乱码】强制运行期 JVM 向控制台输出时使用 UTF-8 编码
+    jvmArgs = ['-Dfile.encoding=UTF-8']
+}
+
+// ==========================================
+// 编译环境配置变量
+// ==========================================
+tasks.withType(JavaCompile).configureEach {
+    // 【修复乱码】强制 Javac 编译器使用 UTF-8 解析源代码文件
+    options.encoding = 'UTF-8'
+}
+
+保存该文件后，在PowerShell中再次执行./gradlew :game-core:run。
+此时预测的行为是，中文Debug日志将呈现，且程序会在[步骤2]等待一个语句输入，处正常阻塞，可以输入tab等指令或具体字符，
+引擎的Scanner能够正确捕获并触发下一轮大循环。
+
+# 2026.06.04 22:12
+按照Gemini执行了，然后我注意到现在确实能正常输入输出了，但是乱码依旧存在。
+我注意到一个非常重要的现象：gradle在我运行时还在构建，我使用ctrl+Z退出时，它才构建结束且显示构建失败，
+且耗时几乎就是我玩游戏测试所花的时间，那么我需要基于这个线索推断出问题所在。
+我靠太有趣了，我要好好研究一下，笑死我了。
+这是由于输入流中断信号引发的运行时异常，进而传导至构建工具生命周期导致构建失败。
+为什么Ctrl+Z会触发FAILED
+1. 在Windows操作系统大环境中，在控制台输入Ctrl+Z并回车，相当于向当前进程的标准输入流发送一个EOF
+（学英语：End-of-File，文件结束标记）信号，物理性地关闭了该输入流。
+Scanner的标准行为约束：
+    根据JDK官方规范，当Scanner.nextLine()在等待输入时遭遇流关闭（EOF），且缓冲区内没有整行数据时，
+    其确定的硬性行为就是抛出java.util.NoSuchElementException: No line found。
+2. Gradle的逻辑交互期间，standardInput = System.in变量配置成功生效，支持了游戏的正常输入。
+键入Ctrl+Z则System.in被物理关闭。Core.java:370捕获到EOF则抛出NoSuchElementException异常。
+由于该异常未被try-catch捕获，所以直接穿透至main线程顶部，导致JVM崩溃。
+JVM异常退出，向操作系统返回了非零退出码（Exit Code: 1）。
+于是此时，构建工具判定：Gradle此时仍处于run任务的执行期（即我看到的75% EXECUTING进度条）。
+Gradle父进程捕获到子JVM进程返回了错误码 1，因此在拓扑生命周期中判定该任务失败，
+从而输出> Task :game-core:run FAILED 及 BUILD FAILED。
+
+现在有以下三个“问题”，但这些问题是否存在和看待问题的角度有关：
+
+1.构建状态Gradle在run任务结束前，必须将运行期视为构建生命周期的一部分，维持EXECUTING状态。
+运行脱离度由“是否必须通过Gradle启动”决定。若通过原生脚本启动，则不存在“构建失败”的概念。
+显然，我们并不希望必须通过Gradle启动。
+
+2.异常抛出遭遇EOF时，Scanner的报错机制由JDK源码锁死。
+注意到可以通过流状态校验，在读取前进行scanner.hasNextLine()的安全阻断即可解决该问题。
+显然，如果我们都不通过Gradle启动了，则不存在该问题的概念。
+
+3.界面渲染Gradle Rich Console渲染器会强行驻留状态栏。
+它们共用一个终端，而纯净控制台不该有75% EXECUTING的字符污染。
+
+# 2026.06.04 22:35
+既然我现在希望切断与Gradle运行时生命周期的耦合，让它变成一个独立的存在，
+而不是像草台班子一样在Gradle的构建过程中运行，况且后续开发输入的重心在前端，那么这说明我临时贴的狗皮膏药，
+临时配置tasks.named('run')完全没有必要存在，直接删了。
+编译期配置tasks.withType(JavaCompile)我就觉得不用保留，即使AI说要保留。
+现在乱码的问题并没有解决，也就是说前面存在一些假设上的失误，下面要做的是不用在Gradle的构建过程中运行，
+只要过了编译，然后能够到处运行，那个乱码问题可能（我可以肯定）就是这种草台班子运行导致的。
+
+# 2026.06.04 23:06
+我把AI狠狠骂了一通，它思维终于正常了
+“解释./gradlew :game-core:clean :game-core:installDist发生了什么，它是否是一种会清除原来缓存的构建，
+以及最终的运行，为什么是.\game-core\build\install\game-core\bin\game-core.bat，
+你上一条内容我并没有采纳，我需要补充一个信息：我未通过gradle构建，而是通过原生态JVM编译运行时，
+绝对不会碰到这个乱码问题，所以请你立刻停止你之前的思路，然后把问题的重心放在，让gradle充当一个构建它的东西，
+而不是在构建时还在运行它，这很草台班子你知道吗”
+
+./gradlew :game-core:clean :game-core:installDist
+现象如下：
+PS D:\Programing\AlgoCodeRebuild> ./gradlew :game-core:clean :game-core:installDist
+
+BUILD SUCCESSFUL in 5s
+6 actionable tasks: 6 executed
+
+emmm，以后构建就用./gradlew :game-core:clean :game-core:installDist，
+但是再以后，有多个子模块的时候，这前一句就不止这一句了，也可能要修改。
+
+执行:game-core:clean时，Gradle会在操作系统底层强制删除整个game-core/build/目录。
+之前被Gradle污染环境编译出来的.class字节码被全部删除，任何状态不一致的临时产物被全部删除。
+这一步删除了所有历史变量，保证接下来的构建是在绝对纯净的环境中进行。
+installDist的作用是把源代码变成可以在任何电脑上独立运行的绿色软件，它的原子动作流如下：
+纯净编译：调用底层原生的javac，将.java编译为.class。
+核心封包：将代码打包，这个场景里打包成game-core.jar。
+依赖收割与隔离：自动将配置的第三方依赖（如Gson库）提取出来，连同核心JAR包，
+统一放置在新建的build/install/game-core/lib/目录下。
+生成原生驱动：在build/install/game-core/bin/目录下，自动生成特定操作系统的原生启动脚本。
+这个任务跑完并显示BUILD SUCCESSFUL，Gradle的生命周期结束。
+
+.\game-core\build\install\game-core\bin\game-core.bat是产物之一，是Win操作系统的原生启动脚本。
+它本质上就是一个高度健壮的原生JVM启动命令。如果脱离Gradle手动去运行包含Gson依赖的项目，
+必须在终端敲下类似这样的大段指令：
+java -cp "lib/game-core.jar;lib/gson-2.10.1.jar" com.algoblock.Main
+随着未来你的第三方依赖库（如网络库、音频库）越来越多，人工维护这个-cp（类路径）是不可能的。
+这个.bat脚本的作用，就是动态扫描lib目录并拼接起的所有物理依赖路径，然后把控制权100%移交给操作系统底层的java.exe。
+结论：运行这个.bat，就是在运行最原生态的JVM。没有Gradle进度条，没有二次转码的乱码。
+它应该是符合“过了编译，就能纯净运行”的工程诉求。
+那么接下来应该尝试运行它看看效果。
+.\game-core\build\install\game-core\bin\game-core.bat
+测了一下，游戏能够正常运行，但此版本存在之前AI留下的技术债，绝对不能提交。
+
+# 2026.06.04 23:28
+移除技术债，注意到build.gradle里存在重复的dependencies并手动合并删除加上注释
+
+移除applicationDefaultJvmArgs = ['-Dfile.encoding=UTF-8']，这句话现在毫无意义，
+    原因很简单，build.gradle中，已经确定了languageVersion = JavaLanguageVersion.of(21)这一规范，
+    在Java平台的底层规范演进中，自JDK 18（JEP 400 提案）起，Java环境的默认字符集（学英语：Default Charset）
+    已经被硬性规定为 UTF-8，说明无论Windows操作系统本地代码页是GBK还是其他，只要是由原生JDK 21的javac编译源文件，
+    或者由原生JDK 21的java.exe启动进程，它们默认的I/O流处理标准就是纯正的UTF-8。
+移除整个 tasks.withType(JavaCompile) 闭包。
+整改了build.gradle。
+
+# 2026.06.04 13:40
+JUnitPlatform 的核心定义与作用
+在现代Java开发中，JUnit Platform是JUnit 5架构的基石。简单来说，它是“测试执行引擎的底座”。
+在以前的JUnit 3和JUnit 4时代，测试框架的API和执行引擎是强耦合在一起的。
+开发工具（例如IntelliJ IDEA、Eclipse）或构建工具（例如Gradle、Maven）如果要运行JUnit测试，
+必须硬编码去适配JUnit的特定版本。
+为了解决这个耦合问题，JUnit 5进行了重构，提出了JUnit Platform的概念。
+
+JUnit 5 = JUnit Platform + JUnit Jupiter + JUnit Vintage
+
+JUnit Platform（平台层）：
+这是最底层的基础设施。它不包含任何编写测试用例的注解（如 @Test），
+它只定义了一套标准化的接口和启动规范（Launcher API）。
+任何构建工具或IDE只要对接了JUnit Platform，就能拉起并运行所有适配了该平台的测试用例。
+JUnit Jupiter（新引擎层）：
+这是目前在JDK 21大环境下编写新测试所使用的标准框架（包含了 @Test, @BeforeEach, @ParameterizedTest 等新注解）。
+它内部包含一个专门的测试引擎，挂载在JUnit Platform上运行。
+JUnit Vintage（老引擎层）：
+这是一个向后兼容的特殊引擎。它的作用是让JUnit 3和JUnit 4的老测试用例，不需要修改任何代码，
+就能直接跑在全新的JUnit Platform上。
+
+在终端执行 ./gradlew :game-core:test时，Gradle会启动其内部的测试任务。
+如果不加useJUnitPlatform()：Gradle默认会降级使用老旧的JUnit 4执行器去寻找测试类。
+因为引入的是JUnit 5（junit-jupiter），Gradle会直接报“找不到任何测试用例”（0 tests completed），
+导致整个测试阶段被空跑。
+
+由于JUnit Platform成了标准大环境，后续开发完核心引擎，测试类运行时，IDEA调用的是JUnit Platform。
+通过Gradle命令行自动化构建时，Gradle调用的也是JUnit Platform。
+这保证了过了编译后，测试用例在任何工具、任何CI/CD自动化大环境下的运行结果和行为是绝对一致的，
+没有任何工具级别的环境差异。
+
+这个东西现阶段有用吗？省流：如有，它是用来方便Debug用的，降低排错成本用的，也就是说我不出错它就没用。

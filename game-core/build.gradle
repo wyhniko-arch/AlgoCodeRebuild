@@ -1,25 +1,32 @@
 plugins {
     id 'java' // 赋予当前子模块标准 Java 编译能力
+    id 'application' // 引入应用程序插件，用于定义主类和生成原生分发脚本
 }
 
-group = 'com.algoblock'
-version = '1.0-SNAPSHOT'
+group = 'com.algoblock' // 规范化包命名，反向域名风格确保全局唯一性
+version = '1.0-SNAPSHOT' // 语义化版本控制，"-SNAPSHOT" 表示当前为开发阶段版本
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21) // 强约束使用 JDK 21 编译器
+        languageVersion = JavaLanguageVersion.of(21) // 强约束使用 JDK 21 编译器（注意：自带 UTF-8 规范）
     }
 }
 
+application {
+    mainClass = 'com.algoblock.Main' // 显式指定大环境下的程序启动入口，后续可能需要更改
+}
+
 dependencies {
-    // 变量引入：将 Gson 库作为隐藏依赖注入核心模块，编译期对外界完全隔离
-    implementation 'com.google.code.gson:gson:2.10.1'
+    // 规范化引入：Gson 库作为 implementation 依赖注入，编译期对外界完全隔离
+    implementation 'com.google.code.gson:gson:2.10.1' // 版本号固定，确保构建稳定性和可重复性
     
     // 规范化测试框架声明
-    testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation platform('org.junit:junit-bom:5.10.0') // 使用 BOM 管理 JUnit 版本，确保所有相关依赖版本一致
+    testImplementation 'org.junit.jupiter:junit-jupiter' // 引入 JUnit Jupiter API 和引擎，支持编写和运行测试用例
 }
 
 test {
-    useJUnitPlatform()
+    useJUnitPlatform() // 明确指定使用 JUnit Platform 作为测试运行器，支持 JUnit 5 的所有特性
 }
+
+// 不懂JUnitPlatform用处的傻屌去看docs下的log02.txt的末尾
