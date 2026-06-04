@@ -22,9 +22,7 @@ public class RuntimeContext {
     private int runCheckCount = 0;
     private int passedCheckCount = 0;
 
-    private static final String OBJECT_KEY_DELIMITER = "\u0000";
-
-    private String generateKey(String struct, String name) { return struct + OBJECT_KEY_DELIMITER + name; }
+    private String generateKey(String struct, String name) { return struct + "_" + name; }
 
     public void putObject(String struct, String name, Abstract obj) {
         System.out.println("[Debug] [Context] 注册游戏对象: " + struct + " -> " + name);
@@ -44,9 +42,9 @@ public class RuntimeContext {
     public Set<String> getActiveObjectNames(String structId) {
         Set<String> names = new HashSet<>();
         for (String key : objects.keySet()) {
-            int sepIndex = key.indexOf(OBJECT_KEY_DELIMITER);
-            if (sepIndex > 0 && key.substring(0, sepIndex).equals(structId)) {
-                names.add(key.substring(sepIndex + OBJECT_KEY_DELIMITER.length()));
+            String[] parts = key.split("_", 2);
+            if (parts.length == 2 && parts[0].equals(structId)) {
+                names.add(parts[1]);
             }
         }
         return names;
