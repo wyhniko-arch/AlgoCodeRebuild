@@ -21,7 +21,13 @@ public class Add implements StructureMethod {
             }
             Integer val = context.popFromBuffer();
             if (val != null) {
-                obj.enqueue(val);
+                // [可变变量（业务逻辑）]: 指针算法与状态变更完全在策略类中进行控制
+                if (obj.size == obj.array.length) {
+                    obj.resizeRawArray(obj.array.length * 2);
+                }
+                obj.array[obj.tail] = val;
+                obj.tail = (obj.tail + 1) % obj.array.length;
+                obj.size++;
             }
         }
     }

@@ -2,35 +2,34 @@ package com.algoblock.structure.stack;
 
 import com.algoblock.RuntimeContext;
 import com.algoblock.structure.Abstract;
+import com.algoblock.structure.MethodRegistryLoader;
 import com.algoblock.structure.StructureMethod;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class FakeStack extends Abstract {
+    // [规范化约束（不可更改）]: 状态容器。定义数据结构在内存中的物理布局，作为外部策略类操作的标准凭证。
     public int[] array;
     public int top; // 栈顶指针
     private static final int INITIAL_CAPACITY = 16;
     
     public static final String TYPE_ID = "Stack";
 
+    // [规范化约束（不可更改）]: 运行时缓存，存储已初始化的指令策略实例，避免重复反射带来的性能开销
     private final Map<String, StructureMethod> loadedMethods = new HashMap<>();
+
+    // [规范化约束（不可更改）]: 元数据注册表，维护指令标识符(instId)与具体策略类全限定名(FQCN)的映射关系
     private final Map<String, String> methodRegistry = new HashMap<>();
 
     public FakeStack() {
         this.array = new int[INITIAL_CAPACITY];
         this.top = -1;
 
-        // 模拟解析 JSON
-        methodRegistry.put("init_full", "com.algoblock.structure.stack.method.InitFull");
-        methodRegistry.put("init_empty", "com.algoblock.structure.stack.method.InitEmpty");
-        methodRegistry.put("copy", "com.algoblock.structure.stack.method.Copy");
-        methodRegistry.put("delete", "com.algoblock.structure.stack.method.Delete");
-        methodRegistry.put("equal", "com.algoblock.structure.stack.method.Equal");
-        methodRegistry.put("pop", "com.algoblock.structure.stack.method.Pop");
-        methodRegistry.put("push", "com.algoblock.structure.stack.method.Push");
+        // 从 JSON 加载方法注册表
+        methodRegistry.putAll(MethodRegistryLoader.load(TYPE_ID));
 
-        // 默认注册不消耗次数的基础指令
+        // 默认注册的基础指令生命周期加载
         loadMethodDynamically("init_full");
         loadMethodDynamically("init_empty");
         loadMethodDynamically("copy");
@@ -38,22 +37,11 @@ public class FakeStack extends Abstract {
         loadMethodDynamically("equal");
     }
 
-    public void ensureCapacity() {
-        if (top == array.length - 1) {
-            int[] newArray = new int[array.length * 2];
-            System.arraycopy(array, 0, newArray, 0, array.length);
-            array = newArray;
-        }
-    }
-
-    public void pushVal(int val) {
-        ensureCapacity();
-        array[++top] = val;
-    }
-
-    public int popVal() {
-        if (top == -1) throw new IllegalStateException("Stack is empty");
-        return array[top--];
+    // [规范化约束（不可更改）]: 纯底层的内存再分配工具，仅执行数组拷贝，不涉及特定业务逻辑校验
+    public void resizeRawArray(int newCapacity) {
+        int[] newArray = new int[newCapacity];
+        System.arraycopy(array, 0, newArray, 0, array.length);
+        this.array = newArray;
     }
 
     @Override

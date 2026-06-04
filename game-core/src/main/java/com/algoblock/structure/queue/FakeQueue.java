@@ -2,14 +2,16 @@ package com.algoblock.structure.queue;
 
 import com.algoblock.RuntimeContext;
 import com.algoblock.structure.Abstract;
+import com.algoblock.structure.MethodRegistryLoader;
 import com.algoblock.structure.StructureMethod;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class FakeQueue extends Abstract {
+    // [规范化约束（不可更改）]: 状态容器。定义数据结构在内存中的物理布局，作为外部策略类操作的标准凭证。
     // 数据结构的内部状态
-    public int[] array; // 对同包下的Method类或Public可见，或提供getter/setter，此处设为public以保持示例简洁且解耦
+    public int[] array;
     public int head;
     public int tail;
     public int size;
@@ -17,10 +19,10 @@ public class FakeQueue extends Abstract {
     
     public static final String TYPE_ID = "Queue";
 
-    // 用于存放当前结构已经实例化并加载完毕的指令方法
+    // [规范化约束（不可更改）]: 运行时缓存，存储已初始化的指令策略实例，避免重复反射带来的性能开销
     private final Map<String, StructureMethod> loadedMethods = new HashMap<>();
 
-    // 模拟从 resource/Structure/Queue/methodRegistry.json 解析的反射映射表
+    // [规范化约束（不可更改）]: 元数据注册表，维护指令标识符(instId)与具体策略类全限定名(FQCN)的映射关系
     private final Map<String, String> methodRegistry = new HashMap<>();
 
     public FakeQueue() {
@@ -29,16 +31,10 @@ public class FakeQueue extends Abstract {
         this.tail = 0;
         this.size = 0;
 
-        // [硬编码模拟JSON解析] -> 实际开发中应在初始化时读取 methodRegistry.json
-        methodRegistry.put("init_full", "com.algoblock.structure.queue.method.InitFull");
-        methodRegistry.put("init_empty", "com.algoblock.structure.queue.method.InitEmpty");
-        methodRegistry.put("copy", "com.algoblock.structure.queue.method.Copy");
-        methodRegistry.put("delete", "com.algoblock.structure.queue.method.Delete");
-        methodRegistry.put("equal", "com.algoblock.structure.queue.method.Equal");
-        methodRegistry.put("pop", "com.algoblock.structure.queue.method.Pop");
-        methodRegistry.put("add", "com.algoblock.structure.queue.method.Add");
+        // 从 JSON 加载方法注册表
+        methodRegistry.putAll(MethodRegistryLoader.load(TYPE_ID));
 
-        // 规范：加载Queue时，仅默认注册基础核心指令，pop和add不在此处预加载
+        // 默认注册的基础指令
         loadMethodDynamically("init_full");
         loadMethodDynamically("init_empty");
         loadMethodDynamically("copy");
@@ -46,32 +42,15 @@ public class FakeQueue extends Abstract {
         loadMethodDynamically("equal");
     }
 
-    // 暴露出的基础操作方法，供独立的Method类调用
-    public void ensureCapacity() {
-        if (size == array.length) {
-            int[] newArray = new int[array.length * 2];
-            for (int i = 0; i < size; i++) {
-                newArray[i] = array[(head + i) % array.length];
-            }
-            array = newArray;
-            head = 0;
-            tail = size;
+    // [规范化约束（不可更改）]: 纯底层的内存再分配工具，仅做数组拷贝，不涉及特定业务（如 enqueue/dequeue）的逻辑校验
+    public void resizeRawArray(int newCapacity) {
+        int[] newArray = new int[newCapacity];
+        for (int i = 0; i < size; i++) {
+            newArray[i] = array[(head + i) % array.length];
         }
-    }
-
-    public void enqueue(int val) {
-        ensureCapacity();
-        array[tail] = val;
-        tail = (tail + 1) % array.length;
-        size++;
-    }
-
-    public int dequeue() {
-        if (size == 0) throw new IllegalStateException("Queue is empty");
-        int val = array[head];
-        head = (head + 1) % array.length;
-        size--;
-        return val;
+        this.array = newArray;
+        this.head = 0;
+        this.tail = size;
     }
 
     @Override

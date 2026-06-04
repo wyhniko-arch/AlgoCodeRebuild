@@ -3,7 +3,7 @@
   "init_empty": "com.algoblock.structure.stack.method.InitEmpty",
   "copy": "com.algoblock.structure.stack.method.Copy",
   "delete": "com.algoblock.structure.stack.method.Delete",
+  "equal": "com.algoblock.structure.stack.method.Equal",
   "pop": "com.algoblock.structure.stack.method.Pop",
-  "push": "com.algoblock.structure.stack.method.Push",
-  "equal": "com.algoblock.structure.stack.method.Equal"
+  "push": "com.algoblock.structure.stack.method.Push"
 }
