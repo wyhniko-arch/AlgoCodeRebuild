@@ -23,3 +23,6 @@ bin/
 # 操作系统临时文件
 Thumbs.db
 .DS_Store
+
+# 忽略 VSCode 的用户设置文件，保持工作区配置的纯净和一致
+.vscode/settings.json

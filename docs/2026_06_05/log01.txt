@@ -1,0 +1,31 @@
+# 2026.06.05 00:05
+注意到根目录多了一个.vscode/文件夹，里面有个setting.json文件，里面的内容如下：
+{
+    "java.configuration.updateBuildConfiguration": "disabled"
+}
+它的作用就是“不要让构建工具干扰开发流程”，这是给VScode的Java扩展用的，是VScode处理Java语言特性的配置文件，
+当安装了Java扩展后，它会自动在项目根目录生成一个.vscode/settings.json。
+这个扩展的功能是提供语法高亮、自动补全、错误检查和项目模型解析。
+VScode的Java扩展默认会开启automatic模式，这意味着每修改build.gradle或者保存代码，
+扩展就会尝试触发Gradle的构建任务来更新项目的类路径，如果开启，VScode会在后台频繁偷偷运行Gradle构建任务，
+试图同步依赖关系。等于说在后台偷偷污染build/目录，用不到自然关了，应该是我点击了VScode的一个弹窗时它自动生成的。
+既然它是给我的Java开发环境用的，它不影响代码的编译运行，只影响VScode界面上对代码的静态分析和语义理解,
+那么它就不应该被commit，但是我刚刚已经commit了没注意，所以需要去取消一下。
+
+首先将该文件从缓存中除去，但是工作区它还在，只是删除了它的索引。
+git rm --cached .vscode/settings.json
+
+# 2026.06.05 00:22
+既然提到了gradle了，顺便复习一下指令：
+
+./gradlew :game-core:clean
+物理删除该模块的build/目录，归零所有历史缓存，确保构建在真空环境中发生
+
+./gradlew :game-core:installDist
+执行纯净编译、打包 JAR、收集依赖，并生成独立运行脚本
+
+./gradlew :game-core:test
+调用JUnit Platform引擎，运行该模块下所有编写的单元测试用例，如果不会用就别用
+
+./gradlew :game-core:dependencies
+查看该模块具体的依赖树（比如Gson被哪个版本加载了），主要用来排查依赖冲突
