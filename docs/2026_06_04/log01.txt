@@ -22,7 +22,8 @@ gradle wrapper --gradle-version 8.9
 其中gradlew文件、gradlew.bat文件、gradle/文件夹属于项目基础设施，
 它们都需要纳入Git管理，它们在左侧都显示为绿色，说明它们都已经被成功纳入；
 其中.gradle/文件夹不需要纳入Git管理，它在左侧显示为灰色则说明成功被忽略，
-（注意：该文件夹只比gradle/文件夹前面多了一个点，但是它是不要被纳入的）
+（注意：该文件夹只比gradle/文件夹前面多了一个点，但是它是不要被纳入的，
+因为.gradle/文件夹它是Gradle的本地工作缓存目录）
 
 # 2026.06.04 19:25
 在game-core文件夹下，创建并配置一个名为build.gradle的文件（注意：是创建在子模块内部，与src同级，而不是在src里），
@@ -32,7 +33,7 @@ gradle wrapper --gradle-version 8.9
 回到根目录，通过包装器脚本对子模块发起编译，目的是验证整个编译链路与依赖解析是否正确
 ./gradlew :game-core:build
 现象：执行完毕后，game-core下生成了build/文件夹，终端提示BUILD SUCCESSFUL，
-build/文件夹不需要纳入Git管理，左侧显示其为灰色，则说明它成功被忽略
+build/文件夹不需要纳入Git管理（build/文件夹它是项目的编译产物目录），左侧显示其为灰色，则说明它成功被忽略
 终端提示BUILD SUCCESSFUL说明依赖已正确加载，指的是语法层面的正确
 
 # 2026.06.04 19:39
