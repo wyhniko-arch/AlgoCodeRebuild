@@ -4,10 +4,6 @@
       "Queue",
       "Stack"
     ],
-    "structRegistry": {
-      "Queue": "com.algoblock.structure.queue.FakeQueue",
-      "Stack": "com.algoblock.structure.stack.FakeStack"
-    },
     "instsAllowed": {
       "Queue_pop": 6,
       "Queue_add": 6,

@@ -34,22 +34,22 @@ public class Core {
     private List<String> judgeInsts;
     private int stepsLimit;
 
-    public void loadLevelConfig() {
-        LevelConfigLoader.LevelConfig levelConfig = LevelConfigLoader.load();
-        if (levelConfig == null) {
-            System.err.println("[ERROR] 无法继续，关卡配置加载失败");
-            return;
-        }
-
-        structUsed = levelConfig.structUsed;
-        instsAllowed = levelConfig.instsAllowed;
-        initInsts = levelConfig.initInsts;
-        judgeInsts = levelConfig.judgeInsts;
-        stepsLimit = levelConfig.stepsLimit;
-
-        if (levelConfig.bufferConfig != null) {
-            runtimeContext.setBufferConfig(levelConfig.bufferConfig.trigger, levelConfig.bufferConfig.target);
-        }
+    public void loadLevelConfig(int levelIndex) {
+        structUsed = Arrays.asList("Queue", "Stack");
+        instsAllowed = new HashMap<>();
+        instsAllowed.put("Queue_pop", 6);
+        instsAllowed.put("Queue_add", 6);
+        instsAllowed.put("Stack_push", 0);
+        instsAllowed.put("Stack_pop", 0);
+        initInsts = Arrays.asList("Queue(A,(1,2,3,4))", "Stack(B)");
+        judgeInsts = Arrays.asList(
+                "Stack(B).copy(ABCDEFG_ABCDEFG_A)",
+                "Stack(ABCDEFG_ABCDEFG_B,(1,3))",
+                "Stack.equal(ABCDEFG_ABCDEFG_A,ABCDEFG_ABCDEFG_B)",
+                "Stack(ABCDEFG_ABCDEFG_A).delete",
+                "Stack(ABCDEFG_ABCDEFG_B).delete");
+        runtimeContext.setBufferConfig("Stack(B).push", "Stack(B).pop");
+        stepsLimit = 6;
     }
 
     public RuntimeContext getRuntimeContext() {
@@ -58,20 +58,12 @@ public class Core {
 
     public void registerStructures() {
         System.out.println("\n[Debug] === 阶段一: 加载物理结构与挂载基础指令 ===");
-        // 从加载的关卡配置中获取结构注册表
-        LevelConfigLoader.LevelConfig levelConfig = LevelConfigLoader.load();
-        if (levelConfig == null || levelConfig.structRegistry == null) {
-            System.err.println("[ERROR] 结构注册表未能加载");
-            return;
-        }
+        Map<String, String> registry = new HashMap<>();
+        registry.put("Queue", "com.algoblock.structure.queue.FakeQueue");
+        registry.put("Stack", "com.algoblock.structure.stack.FakeStack");
 
         for (String struct : structUsed) {
-            String fqcn = levelConfig.structRegistry.get(struct);
-            if (fqcn == null) {
-                System.err.println("[ERROR] 结构体 [" + struct + "] 未在注册表中找到");
-                continue;
-            }
-
+            String fqcn = registry.get(struct);
             try {
                 Abstract structInstance = (Abstract) Class.forName(fqcn).getDeclaredConstructor().newInstance();
                 structureTemplates.put(struct, structInstance);
@@ -379,8 +371,8 @@ public class Core {
         }
     }
 
-    public void run() {
-        loadLevelConfig();
+    public void run(int levelIndex) {
+        loadLevelConfig(levelIndex);
         registerStructures();
         initAllowedLimits();
 

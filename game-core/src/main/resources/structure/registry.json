@@ -1,4 +1,4 @@
 {
-  "Queue": "queue/Queue.java",
-  "Stack": "stack/Stack.java"
+  "Queue": "queue/FakeQueue.java",
+  "Stack": "stack/FakeStack.java"
 }
