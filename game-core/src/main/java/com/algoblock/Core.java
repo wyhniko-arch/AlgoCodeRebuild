@@ -1,6 +1,4 @@
 package com.algoblock;
-
-import com.algoblock.core.levels.Level;
 import com.algoblock.structure.Abstract;
 
 import java.util.*;
@@ -52,26 +50,6 @@ public class Core {
                 "Stack(ABCDEFG_ABCDEFG_B).delete");
         runtimeContext.setBufferConfig("Stack(B).push", "Stack(B).pop");
         stepsLimit = 6;
-    }
-
-    /**
-     * 从 Level 对象加载关卡配置（供 GameCoreService 调用）。
-     */
-    public void loadLevel(Level level) {
-        this.structUsed = new ArrayList<>(level.structUsed());
-        this.instsAllowed = new HashMap<>();
-        for (Level.InstAllowed ia : level.instsAllowed()) {
-            this.instsAllowed.put(ia.struct() + "_" + ia.instId(), ia.maxUses());
-        }
-        this.initInsts = new ArrayList<>(level.initInsts());
-        this.judgeInsts = new ArrayList<>(level.judgeInsts());
-        this.stepsLimit = level.stepsLimit();
-
-        if (!level.bufferStruct().isEmpty()) {
-            runtimeContext.setBufferConfig(
-                    level.bufferInstIn(),
-                    level.bufferInstOut());
-        }
     }
 
     public RuntimeContext getRuntimeContext() {

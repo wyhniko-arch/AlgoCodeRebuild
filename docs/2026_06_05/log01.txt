@@ -29,3 +29,8 @@ git rm --cached .vscode/settings.json
 
 ./gradlew :game-core:dependencies
 查看该模块具体的依赖树（比如Gson被哪个版本加载了），主要用来排查依赖冲突
+
+# 2026.06.05 00:53
+既然某些高级CI/CD流水线依赖feat: 前缀自动升级次版本号，虽然用不用得到取决于这个项目的后续发展，
+但在关键版本提交的时候，说明Changes的字符串前缀必须加上feat: 其中冒号后面的英文空格别漏掉。
+这就是为了让这个工程资产具备机器可读性。
