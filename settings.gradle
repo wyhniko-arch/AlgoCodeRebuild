@@ -1,0 +1,5 @@
+// 规范化：定义整个平台根项目的名称
+rootProject.name = 'AlgoCodeRebuild'
+
+// 变量：当前阶段仅将现有的 game-core 文件夹注册为子模块
+include 'game-core'

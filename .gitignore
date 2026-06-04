@@ -1,0 +1,25 @@
+# Gradle 自动化构建产物
+.gradle/
+build/
+
+# 编译生成的临时二进制文件
+*.class
+*.log
+*.ctxt
+
+# 运行期产生的运行时崩溃快照，幻像文件.中央
+*.ipr
+*.iws
+*.iws
+
+# VSCode 工作区本地缓存与索引
+.idea/
+.project
+.classpath
+.factorypath
+.settings/
+bin/
+
+# 操作系统临时文件
+Thumbs.db
+.DS_Store

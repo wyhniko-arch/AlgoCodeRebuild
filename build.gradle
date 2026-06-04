@@ -1,0 +1,6 @@
+// 规范化：约束所有子模块的远程下载源
+allprojects {
+    repositories {
+        mavenCentral()
+    }
+}

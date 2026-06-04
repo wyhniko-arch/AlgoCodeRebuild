@@ -1,0 +1,25 @@
+plugins {
+    id 'java' // 赋予当前子模块标准 Java 编译能力
+}
+
+group = 'com.algoblock'
+version = '1.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21) // 强约束使用 JDK 21 编译器
+    }
+}
+
+dependencies {
+    // 变量引入：将 Gson 库作为隐藏依赖注入核心模块，编译期对外界完全隔离
+    implementation 'com.google.code.gson:gson:2.10.1'
+    
+    // 规范化测试框架声明
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+test {
+    useJUnitPlatform()
+}

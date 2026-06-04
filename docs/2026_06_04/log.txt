@@ -1,0 +1,133 @@
+# 2026.06.04 18:58
+将game-core转移到AlgoCoreRebuild文件夹下，删除bin目录，在根目录下创建并配置了.gitignore文件，
+因此未来commit时，会忽略Gradle自动化构建产物、编译生成的临时二进制文件、运行期产生的运行时崩溃快照、
+VSCode工作区本地缓存与索引、操作系统临时文件，这里面的配置是最少且必要的，如果是经验不足的新手，
+务必去根目录下查看.gitignore文件配置，以规避未来开发中，由于文件夹命名同名所导致的部分代码无法同步云端的错误
+
+# 2026.06.04 19:06
+初始化Git仓库，根据现代GitHub默认主分支规范，将分支名称规范化切换为main
+git init
+git checkout -b main
+
+# 2026.06.04 19:10
+在根目录下创建并配置settings.gradle和build.gradle，
+前者的含义是，声明模块之间的拓扑关系，注意这是一个多模块的工程结构，只是目前有且只有game-core一个子模块
+后者的含义是，声明所有子模块的远程下载源并起到约束的作用，即外部的依赖从哪里下载，暂时只放了一个空壳
+
+# 2026.06.04 19:20
+在根目录生成Gradle Wrapper，这是构建包装器，是为了保证项目在任何环境下编译时使用的Gradle版本一致，
+包括但不限于未来的云端流程，这一步由于Churk-Ben提到他用的8.9版本，所以我也用8.9版本
+gradle wrapper --gradle-version 8.9
+现象：执行完毕后，根目录下自动生成了gradlew文件、gradlew.bat文件、gradle/文件夹、.gradle/文件夹，
+其中gradlew文件、gradlew.bat文件、gradle/文件夹属于项目基础设施，
+它们都需要纳入Git管理，它们在左侧都显示为绿色，说明它们都已经被成功纳入；
+其中.gradle/文件夹不需要纳入Git管理，它在左侧显示为灰色则说明成功被忽略，
+（注意：该文件夹只比gradle/文件夹前面多了一个点，但是它是不要被纳入的）
+
+# 2026.06.04 19:25
+在game-core文件夹下，创建并配置一个名为build.gradle的文件（注意：是创建在子模块内部，与src同级，而不是在src里），
+它的作用是，为core写编译规范，以及所需的外源库
+
+# 2026.06.04 19:29
+回到根目录，通过包装器脚本对子模块发起编译，目的是验证整个编译链路与依赖解析是否正确
+./gradlew :game-core:build
+现象：执行完毕后，game-core下生成了build/文件夹，终端提示BUILD SUCCESSFUL，
+build/文件夹不需要纳入Git管理，左侧显示其为灰色，则说明它成功被忽略
+终端提示BUILD SUCCESSFUL说明依赖已正确加载，指的是语法层面的正确
+
+# 2026.06.04 19:39
+由于我在GitHub上建立了一个空白仓库，不包含README和.gitignore，由于首次接触gradle，
+所以如果使用VScode图形化界面的按钮可能会导致一些问题被静默地由默认方式处理，导致埋技术债地雷，
+所以我决定使用指令，首先将工作区内所有未被忽略的代码及资产暂存到索引区：
+git add .
+如果这一步没问题，则后面应该跟：检查暂存区状态，以确保没有build/或.gradle/等文件夹被误加
+git status（但我未执行这一步）
+然后提交至本地仓库（亦未执行这一步）
+git commit -m "feat: init multi-module gradle project skeleton and integrate gson for game-core"
+再然后关联远端GitHub空白仓库（未执行这一步）
+git remote add origin https://github.com/wyhniko-arch/AlgoCodeRebuild.git
+最后强制推送到远端主分支并建立跟踪
+git push -u origin main
+现象：执行git status后，没有继续执行后续指令，因为此时的terminal爆了2个warning，
+warning: in the working copy of 'gradle/wrapper/gradle-wrapper.properties', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'gradlew', LF will be replaced by CRLF the next time Git touches it
+我注意到这个报错和LF以及CRLF有关，于是推理假设这可能跟之前Likgon-GYY碰到的构建失败有关，逻辑：在清理C盘导致环境变量丢失之前，
+他已成功下载gradle，但是执行构建命令时却报错了，其次假设有概率和我在Churk-Ben提供的gradle构建运行后，打印在缓冲区出现锟斤拷有关
+总逻辑：因为这两个报错和换行的格式有关，说明此时需要学习这里存在什么问题，如果不学习，不明白问题是什么而继续后续步骤，
+那么可能导致的后果也是无法预测的。
+该问题和gradle版本有关的可能性很小，因为更改Gradle版本至8.9属于环境配置中的可变变量调整，是完全合理的。
+换行符的物理规范（大环境下的不可变标准）：
+Windows 系统：行尾标识符标准为 CRLF（回车+换行，即 \r\n）。
+Linux / macOS / Unix 系统：行尾标识符标准为 LF（换行，即 \n）。
+执行gradle wrapper命令时，Gradle自动生成的gradlew（专门提供给Unix类系统执行的Shell脚本）和gradle-wrapper.properties默认使用了LF换行符。
+我在Windows系统下执行git add .时，Git默认开启了core.autocrlf = true配置。Git侦测到了工作区中存在LF文件，
+于是提示：它会在下次读取或检出时，自动将其转换为Windows风格的CRLF，以适应当前的本地操作系统。
+放任此警告不管，会产生直接的工程故障。我们评估风险。
+对于.java源码、.md文档等，换行符在不同开发者的电脑上呈现为LF或CRLF可被接受，因为现代IDE和编译器均能兼容解析。
+最危险的地方在于，gradlew文件是Bash脚本。Unix Shell解析器严格规定仅支持LF换行符。
+如果Git将gradlew转换为CRLF并推送至GitHub，未来当该代码被拉取到Linux服务器、macOS电脑，
+或者进入GitHub Actions等CI/CD自动化构建流水线时，执行./gradlew将直接导致进程崩溃，
+抛出类似/bin/sh^M: bad interpreter的语法错误。
+所以说明当前的问题不会影响到Windows端的开发，推翻前面的假设
+但是其他系统一定会有大病，如果能没有大病，那么肯定是配置了什么别的东西。
+考虑到gradlew.bat有可能会因为自动规则的犯病而不再是CRLF的，所以它需要被强制格式为CRLF，
+而gradlew必须是LF的。
+
+# 2026.06.04 20:20
+在根目录新建名为.gitattributes的文件，用来解决刚刚提到的问题，在项目物理边界内强制固化关键文件的换行符规范，
+而不是更改个人电脑的Git全局配置。配置完后，由于之前已经执行了git add .，存在错误换行符状态的文件已被记录，
+需要执行命令清除缓存并重新应用规范
+移除暂存区的所有文件，但不删除物理文件，仅清除Git缓存
+git rm --cached -r .
+如果这一步正确，则下面应该重新将所有文件，包括新加的.gitattributes加入暂存区，即依旧
+git add .
+但是这一步并没有正确，而是报错了，现象：
+error: the following file has staged content different from both the
+file and the HEAD:
+    docs/2026_06_04/log.txt
+这是因为我正在写这个日志，并中途时时地保存，它触发了git的安全拦截机制，但是这么拦截的目的是什么？
+这时需要展开进一步学习，否则后续无法预测。
+在Git的运行机制中，存在三个核心的数据状态区域：
+Working Directory (工作区)：在本地硬盘上实际看到和修改的物理文件。
+Index / Staging Area (暂存区)：执行git add后，文件快照被记录到的缓存区域。
+HEAD (本地仓库)：执行git commit后永久保存的版本（在当前场景下，由于是首次提交，HEAD实际上是空的）。
+此时，log.txt文件的物理状态与暂存区快照状态产生了分歧，Git的底层规范为了防止开发者意外丢失暂存区中的特定版本，
+所以才默认拦截了普通的rm操作。
+评估：强制执行是否会丢失物理数据？
+不会。--cached参数是一个严格的作用域约束，它指示Git仅操作暂存区索引，绝对不触碰本地硬盘上的物理文件。
+因此，即使使用-f强制清除暂存区，物理日志文件和代码也完全安全。
+尝试执行
+git rm -f --cached -r .
+现象：一堆目录，看上去全被删除了。
+git add .
+现象：仍然剩余一个报错：
+warning: in the working copy of 'gradle/wrapper/gradle-wrapper.properties', LF will be replaced by CRLF the next time Git touches it
+尝试分析：
+刚才配置的.gitattributes中，编写的规则如下：
+* text=auto
+gradlew text eol=lf
+gradlew.bat text eol=crlf
+该规则仅对gradlew和gradlew.bat进行了精确到文件名的物理锁死。
+而gradle/wrapper/gradle-wrapper.properties是一个文本配置文件，它触发了第一行的通用规则* text=auto。
+由于该文件是由gradle wrapper命令自动生成的，其默认换行符为LF。在Windows环境下执行git add .时，
+Git 的通用机制（text=auto 结合本地全局的 core.autocrlf=true）识别到这是一个文本文件，
+提示：“当前工作区是LF，下一次Git触碰它时，会将其自动转换为CRLF”。
+
+这个文件的警告相对之前的gradlew脚本警告的风险更小
+gradlew如果变成CRLF，Linux/Unix的Shell解析器会直接崩溃报错。
+gradle-wrapper.properties在功能上无风险，该文件是标准的Java属性文件，Java虚拟机的类加载器与配置解析器
+（java.util.Properties）在底层设计上同时兼容LF和CRLF。因此，即使Git将其转换为CRLF，
+也不会影响Gradle的正常下载与构建。
+但这有一个潜在工程隐患：如果在多团队协作中，部分开发者使用Mac（默认LF），部分使用Windows（被转换为CRLF），
+且没有在版本库层面固化规范，会导致该文件在代码比对（指git diff，即Git用红绿颜色和符号告诉你哪些行被删除了，
+哪些行被添加了）时出现无意义的全文冲突。
+为了保持项目的绝对纯净，消除所有换行符警告，最佳实践是在.gitattributes中补充对Gradle配置资产及通用属性文件的显式约束，
+将其统一固化为LF，即在最后增加如下语句：
+*.properties text eol=lf
+保存后，继续：
+git rm -f --cached -r .
+git add .
+
+
+
+

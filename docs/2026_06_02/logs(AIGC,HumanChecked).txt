@@ -1,0 +1,146 @@
+# AlgoBlock 游戏引擎核心架构与运行流程文档
+
+## 一、 前置说明与项目现状
+
+* **说明1**：`Main.java` 作为临时测试入口。
+* **说明2**：未实现对 `registry` 文件夹内 JSON 文件的解析，通过硬编码方法临时代替。所有 JSON 文件一定放在 `registry` 内（未来将作为微服务或插件化架构的唯一扫描源）。
+* **说明3**：加入了指令匹配功能，可以像 VScode 那样 Tab 补全代码，Up 和 Down 切换 Options，由于尚未依赖用于交互的 UI 库，暂时用关键词（tab/del/enter/up/down）模拟。
+* **说明4**：优化掉了正则表达式，改用可读性更强、更简洁的自创模板格式（使用 `@` 作为对象名称的统一占位符）。
+* **说明5**：优化掉了所有指令方法对 `Core` 的强依赖，以及对与正则表达式有关的库（`java.util.regex.*`）的依赖。
+* **说明6**：优化掉了指令在具体方法处进行字符串解析的逻辑，改为在 `Core` 中利用游标滑动统一解析，提取出参数数组后直接传递给具体方法。该改动大幅提升了运行效率，且未降低程序的自由度。
+* **说明7**：优化了指令注册过程的时间复杂度（通过 HashMap 实现 O(1) 定位），以及指令匹配与词法联想过程的时间复杂度（O(L) 前缀树过滤机制）。
+* **说明8**：全局加入了详尽的 Debug 日志，实现了精准到参数级别的溯源监控。
+
+## 二、 工程目录结构
+
+```text
+D:.
+|   .gitignore
+|   README.md
+|   文档.txt
+|   
+\---game-core
+    +---bin (编译输出目录)
+    |   \--- ... (同 src 结构)
+    \---src
+        +---main
+        |   +---java
+        |   |   \---com
+        |   |       \---algoblock
+        |   |           |   Core.java                 # 引擎主调度器与解析核心
+        |   |           |   InstructionDefinition.java# 指令数据模型 (存储模式与切片)
+        |   |           |   Main.java                 # 测试入口
+        |   |           |   RuntimeContext.java       # 运行时状态与上下文沙箱
+        |   |           |   
+        |   |           \---Structure
+        |   |               |   Abstract.java         # 物理结构基类 (分发器抽象)
+        |   |               |   StructureMethod.java  # 指令逻辑接口 (彻底解耦解析逻辑)
+        |   |               |   
+        |   |               +---Array                 # 数组数据结构
+        |   |               +---PriorityQueue         # 优先队列
+        |   |               +---Queue                 # 队列实现簇
+        |   |               |   |   FakeQueue.java
+        |   |               |   \---Method
+        |   |               |           Add.java, Copy.java, Pop.java ...
+        |   |               \---Stack                 # 栈实现簇
+        |   |                   |   FakeStack.java
+        |   |                   \---Method
+        |   |                           Push.java, Pop.java, Delete.java ...
+        |   |                           
+        |   \---resources
+        |       +---levels
+        |       |       001.json                      # 关卡配置清单
+        |       \---Structure
+        |           |   registry.json                 # 结构体类路径映射表
+        |           +---Queue
+        |           |       methodRegistry.json       # Queue专属扩展指令映射表
+        |           \---Stack
+        |                   methodRegistry.json       # Stack专属扩展指令映射表
+        \---test
+            \---java
+
+```
+
+---
+
+## 三、 核心脚本依赖关系 (Dependency Injection)
+
+系统采用了严密的“单向依赖与控制反转（IoC）”设计，各模块权责分明：
+
+1. **`Core.java` (主脑/调度器)**
+* **依赖**：`RuntimeContext`, `Abstract`, `InstructionDefinition`
+* **职责**：掌控引擎绝对生命周期。负责读取配置、利用反射机制初始化结构体、管理 `O(1)` 检索注册表（`identityToInstruction` / `structToInstructions`）、执行用户交互模拟（词法解析、UI 渲染）、以及参数数组的提取与安全路由。
+
+
+2. **`RuntimeContext.java` (沙箱/状态机)**
+* **依赖**：`Core` (用于触发系统默认指令回调), `Abstract` (对象引用)
+* **职责**：充当所有结构之间的通信中枢。维护全局唯一的游戏对象实例池（利用 `StructId_Name` 作为隔离主键），维护隔离体系之外的全局参数缓冲区（Buffer），记录并结算循环跳出条件（检测通过次数）。
+
+
+3. **`InstructionDefinition.java` (静态数据模型)**
+* **依赖**：无
+* **职责**：封装单个指令的规范。在实例化时立刻完成 `@` 占位符的 O(1) 预分片，为 `Core` 提供 `literals` 数组以供滑动匹配。维护该指令的当前使用次数与玩家使用上限。
+
+
+4. **`Abstract.java` (抽象基类 / 路由节点)**
+* **依赖**：`RuntimeContext`
+* **职责**：代表一种“数据结构类型”（如 Queue）。它是向下分发的二级路由，持有自身所有可用方法的引用，接收 `Core` 传来的 `args` 数组并精确投递给对应的 `StructureMethod` 执行，同时提供动态反射加载自身新指令的能力。
+
+
+5. **`StructureMethod.java` (原子执行单元)**
+* **依赖**：`RuntimeContext`
+* **职责**：业务逻辑的最终执行者。彻底脱离正则表达式与字符串解析，只负责提供纯文本模板（Pattern），并接收提取好的明确参数，通过操作 `RuntimeContext` 实现自身逻辑。
+
+
+
+---
+
+## 四、 引擎运行流程 (生命周期 Lifecycle)
+
+引擎的生命周期严格分为“关卡初始化”与“交互大循环”两阶段。
+
+### 阶段一：关卡初始化 (Initialization)
+
+1. **加载配置 (`loadLevelConfig`)**：
+* 将关卡 JSON（如 `001.json`）转录到引擎内存中，明确本局允许的结构（`struct_used`）、玩家指令配额（`insts_allowed`）、系统预设指令（`init_insts` / `judge_insts`）及通关步数。
+
+
+2. **物理结构注册与默认指令挂载 (`registerStructures`)**：
+* 遍历 `struct_used`，通过反射实例化具体的结构管理类（如 `FakeQueue`）。
+* 提取该结构自带的默认指令簇，装载进入引擎全局哈希路由表，**此时所有指令的玩家使用上限均初始化为 `0`（拦截玩家输入）**。
+
+
+3. **玩家配额装配与动态加载 (`initAllowedLimits`)**：
+* 遍历 `insts_allowed` 授权清单。
+* 若目标指令在第 2 步中已存在，直接利用 $O(1)$ 字典修改其 `maxUses` 上限，向玩家开放权限。
+* 若目标指令不存在，则请求对应结构类发起**反射动态拉取**（利用 `loadMethodDynamically` 读取 `methodRegistry.json`），拉取成功后补全注册并赋权。
+
+
+4. **执行初始预设语句**：
+* 逐一静默执行 `init_insts` 列表（如创建初始栈、填充数值），此类语句由系统身份执行，无视配额限制。
+
+
+
+### 阶段二：主交互大循环 (Main Loop)
+
+当预设环境搭建完毕，进入受 `stepsLimit` 限制的步数驱动循环：
+
+1. **状态重置**：归零 `RuntimeContext` 中的过关判定计数器。
+2. **词法监听与 UI 渲染 (`interactiveReadCommand`)**：
+* **实时推演**：玩家每一次输入字符或操作，引擎都会通过 O(L) 游标法，结合 `RuntimeContext.getActiveObjectNames(structId)` 提取的严格命名空间进行合法性预测。
+* **分叉联想**：过滤出**仅玩家有权使用且剩余次数 > 0** 的指令，向控制台输出颜色反馈（Green 匹配成功 / Red 死胡同 / White 待续）及金色/灰色动态提示。
+* **动作模拟**：通过 `enter` (提交), `tab` (补全), `up/down` (切换分支) 实现无 UI 环境下的交互模拟。
+
+
+3. **玩家指令解析与路由 (`executeStatement`)**：
+* 拦截无效或超额指令。
+* 通过 O(1) 预检定位至目标结构簇。
+* 通过 `extractArgumentsFast` 分离出操作数（如 `A`、`B`），并转发给对应的原子逻辑单元。
+
+
+4. **系统级校验 (`judge_insts` 执行)**：
+* 静默且无条件地执行通关判定语句（如 `Stack.equal`、`Stack.delete`），累加检测标识位。
+
+
+5. **缓冲区清洗**：强制清空 `RuntimeContext` 内的 Buffer，确保下一回合状态干净。
+6. **胜负判定**：若 `runCheckCount == passedCheckCount` 则判定通关，打破循环。若循环次数达到上限未通关，则结算失败。

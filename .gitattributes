@@ -1,0 +1,11 @@
+# 设置所有文本文件默认交由 Git 根据操作系统自动处理 (可变变量)
+* text=auto
+
+# 强制规定 Unix 脚本必须使用 LF 换行符 (严格的不可变规范)
+gradlew text eol=lf
+
+# 强制规定 Windows 脚本必须使用 CRLF 换行符
+gradlew.bat text eol=crlf
+
+# 强制规定所有属性配置文件与 Gradle 资产统一使用 LF 换行符（消除警告）
+*.properties text eol=lf

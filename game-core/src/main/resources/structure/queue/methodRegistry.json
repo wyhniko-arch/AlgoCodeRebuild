@@ -1,0 +1,9 @@
+{
+  "init_full": "com.algoblock.structure.queue.method.InitFull",
+  "init_empty": "com.algoblock.structure.queue.method.InitEmpty",
+  "copy": "com.algoblock.structure.queue.method.Copy",
+  "delete": "com.algoblock.structure.queue.method.Delete",
+  "pop": "com.algoblock.structure.queue.method.Pop",
+  "add": "com.algoblock.structure.queue.method.Add",
+  "equal": "com.algoblock.structure.queue.method.Equal"
+}
