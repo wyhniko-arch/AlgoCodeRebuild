@@ -1,6 +1,6 @@
 package com.algoblock.structure.queue.method;
 
-import com.algoblock.RuntimeContext;
+import com.algoblock.context.RuntimeContext;
 import com.algoblock.structure.StructureMethod;
 import com.algoblock.structure.queue.FakeQueue;
 

@@ -1,4 +1,4 @@
-package com.algoblock;
+package com.algoblock.core;
 
 public class InstructionDefinition {
     private final String structId;

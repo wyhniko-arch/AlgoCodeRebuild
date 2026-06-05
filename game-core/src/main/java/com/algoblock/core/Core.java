@@ -1,5 +1,8 @@
-package com.algoblock;
+package com.algoblock.core;
+import com.algoblock.config.LevelConfig;
+import com.algoblock.context.RuntimeContext;
 import com.algoblock.structure.Abstract;
+import com.algoblock.util.LevelConfigLoader;
 
 import java.util.*;
 
@@ -34,22 +37,23 @@ public class Core {
     private List<String> judgeInsts;
     private int stepsLimit;
 
-    public void loadLevelConfig(int levelIndex) {
-        structUsed = Arrays.asList("Queue", "Stack");
+    public void loadLevel(int levelIndex) {
+        // 1. 插入行：从外部加载器获取已解析好 JSON 数据的实例
+        LevelConfig config = LevelConfigLoader.getConfig(levelIndex);
+        
+        structUsed = config.structUsed;
         instsAllowed = new HashMap<>();
-        instsAllowed.put("Queue_pop", 6);
-        instsAllowed.put("Queue_add", 6);
-        instsAllowed.put("Stack_push", 0);
-        instsAllowed.put("Stack_pop", 0);
-        initInsts = Arrays.asList("Queue(A,(1,2,3,4))", "Stack(B)");
-        judgeInsts = Arrays.asList(
-                "Stack(B).copy(ABCDEFG_ABCDEFG_A)",
-                "Stack(ABCDEFG_ABCDEFG_B,(1,3))",
-                "Stack.equal(ABCDEFG_ABCDEFG_A,ABCDEFG_ABCDEFG_B)",
-                "Stack(ABCDEFG_ABCDEFG_A).delete",
-                "Stack(ABCDEFG_ABCDEFG_B).delete");
-        runtimeContext.setBufferConfig("Stack(B).push", "Stack(B).pop");
-        stepsLimit = 6;
+        if (config.instsAllowed != null) {
+            for (LevelConfig.InstConfig instConfig : config.instsAllowed) {
+                instsAllowed.put(instConfig.struct + "_" + instConfig.instId, instConfig.maxUses);
+            }
+        }
+        initInsts = config.initInsts;
+        judgeInsts = config.judgeInsts;
+        if (config.buffer != null) {
+            runtimeContext.setBufferConfig(config.buffer.instIn, config.buffer.instOut);
+        }
+        stepsLimit = config.stepsLimit;
     }
 
     public RuntimeContext getRuntimeContext() {
@@ -58,10 +62,29 @@ public class Core {
 
     public void registerStructures() {
         System.out.println("\n[Debug] === 阶段一: 加载物理结构与挂载基础指令 ===");
+        com.algoblock.config.StructureRegistry  
+            registryConfig = com.algoblock.util.StructureRegistryLoader.getRegistry();
         Map<String, String> registry = new HashMap<>();
-        registry.put("Queue", "com.algoblock.structure.queue.FakeQueue");
-        registry.put("Stack", "com.algoblock.structure.stack.FakeStack");
-
+        //registry.put("Queue", "com.algoblock.structure.queue.FakeQueue");
+        //registry.put("Stack", "com.algoblock.structure.stack.FakeStack");
+        // 3. 遍历当前关卡启用的结构体
+        for (String struct : structUsed) {
+            // 4. 从实例里找到对应的相对路径字符串 (如 "queue/FakeQueue.java")
+            String relativePath = registryConfig.getPath(struct);
+            
+            if (relativePath == null) {
+                throw new RuntimeException("配置错误：在注册表实例中未找到结构体 [" + struct + "] 的定义");
+            }
+            // 5. 按照大环境规范进行字符串拼接转换
+            String dotNotation = relativePath.replace('/', '.');
+            if (dotNotation.endsWith(".java")) {
+                dotNotation = dotNotation.substring(0, dotNotation.length() - 5);
+            }
+            String fqcn = "com.algoblock.structure." + dotNotation;
+            // 6. 愉快地一个个存入本地 registry 映射表：(结构, 路径)
+            registry.put(struct, fqcn);
+        }
+        
         for (String struct : structUsed) {
             String fqcn = registry.get(struct);
             try {
@@ -372,7 +395,7 @@ public class Core {
     }
 
     public void run(int levelIndex) {
-        loadLevelConfig(levelIndex);
+        loadLevel(levelIndex);
         registerStructures();
         initAllowedLimits();
 

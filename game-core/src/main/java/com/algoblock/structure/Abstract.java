@@ -1,8 +1,9 @@
 package com.algoblock.structure;
 
-import com.algoblock.RuntimeContext;
 import java.util.HashMap;
 import java.util.Map;
+
+import com.algoblock.context.RuntimeContext;
 
 public abstract class Abstract {
     public String name;

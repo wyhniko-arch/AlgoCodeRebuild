@@ -1,4 +1,4 @@
-package com.algoblock;
+package com.algoblock.context;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
+import com.algoblock.core.Core;
 import com.algoblock.structure.Abstract;
 
 public class RuntimeContext {

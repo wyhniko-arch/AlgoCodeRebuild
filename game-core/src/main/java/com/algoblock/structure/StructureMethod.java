@@ -1,5 +1,5 @@
 package com.algoblock.structure;
-import com.algoblock.RuntimeContext;
+import com.algoblock.context.RuntimeContext;
 
 public interface StructureMethod {
     /**
