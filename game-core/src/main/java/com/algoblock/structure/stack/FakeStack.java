@@ -20,11 +20,11 @@ public class FakeStack extends Abstract {
         this.methodRegistry.putAll(MethodRegistryLoader.load(TYPE_ID));
 
         // 默认注册的基础指令生命周期加载
-        loadMethodDynamically("init_full");
-        loadMethodDynamically("init_empty");
-        loadMethodDynamically("copy");
-        loadMethodDynamically("delete");
-        loadMethodDynamically("equal");
+        ifLoadMethodDynamically("init_full");
+        ifLoadMethodDynamically("init_empty");
+        ifLoadMethodDynamically("copy");
+        ifLoadMethodDynamically("delete");
+        ifLoadMethodDynamically("equal");
     }
 
     // 物理扩容工具

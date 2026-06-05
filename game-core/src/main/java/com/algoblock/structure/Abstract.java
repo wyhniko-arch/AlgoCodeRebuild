@@ -40,7 +40,7 @@ public abstract class Abstract {
         }
     }
 
-    public boolean loadMethodDynamically(String commandId) {
+    public boolean ifLoadMethodDynamically(String commandId) {
         if (!loadedMethods.containsKey(commandId) && methodRegistry.containsKey(commandId)) {
             String fqcn = methodRegistry.get(commandId);
             try {
