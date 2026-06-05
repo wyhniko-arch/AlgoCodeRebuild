@@ -14,35 +14,35 @@ public class LevelConfig {
     @SerializedName("struct_used")
     public List<String> structUsed;
     
-    @SerializedName("insts_allowed")
-    public List<InstConfig> instsAllowed;
+    @SerializedName("commands_allowed")
+    public List<CommandConfig> commandsAllowed;
     
-    @SerializedName("init_insts")
-    public List<String> initInsts;
+    @SerializedName("init_commands")
+    public List<String> initCommands;
     
-    @SerializedName("judge_insts")
-    public List<String> judgeInsts;
+    @SerializedName("judge_commands")
+    public List<String> judgeCommands;
     
     public BufferConfig buffer;
     
     @SerializedName("steps_limit")
     public int stepsLimit;
 
-    public static class InstConfig {
+    public static class CommandConfig {
         public String struct;
         
-        @SerializedName("inst_id")
-        public String instId;
+        @SerializedName("command_id")
+        public String commandId;
         
         @SerializedName("max_uses")
         public int maxUses;
     }
 
     public static class BufferConfig {
-        @SerializedName("inst_in")
-        public String instIn;
+        @SerializedName("command_in")
+        public String commandIn;
         
-        @SerializedName("inst_out")
-        public String instOut;
+        @SerializedName("command_out")
+        public String commandOut;
     }
 }

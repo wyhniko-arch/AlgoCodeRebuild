@@ -21,7 +21,7 @@ public class Pop implements StructureMethod {
                 context.pushToBuffer(val);
             }
             if (context.getandresetIsPlayerAction()) {
-                context.triggerEngineCommand(context.getBufferInstIn()); 
+                context.triggerEngineCommand(context.getBufferCommandIn()); 
             }
         }
     }

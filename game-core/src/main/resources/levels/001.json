@@ -2,30 +2,30 @@
   "input_desc": "Queue(A) = (1,2,3,4)",
   "output_desc": "Stack(B) top = (4,2,1,3)",
   "struct_used": ["Queue", "Stack"],
-  "insts_allowed": [
+  "commands_allowed": [
     {
       "struct": "Queue",
-      "inst_id": "pop",
+      "command_id": "pop",
       "max_uses": 6
     },
     {
       "struct": "Queue",
-      "inst_id": "add",
+      "command_id": "add",
       "max_uses": 6
     },
     {
       "struct": "Stack",
-      "inst_id": "pop",
+      "command_id": "pop",
       "max_uses": 0
     },
     {
       "struct": "Stack",
-      "inst_id": "push",
+      "command_id": "push",
       "max_uses": 0
     }
   ],
-  "init_insts": ["Queue(A,(1,2,3,4))", "Stack(B)"],
-  "judge_insts": [
+  "init_commands": ["Queue(A,(1,2,3,4))", "Stack(B)"],
+  "judge_commands": [
     "Stack(B).copy(ABCDEFG_ABCDEFG_A)",
     "Stack(ABCDEFG_ABCDEFG_B,(1,3,4,2))",
     "Stack.equal(ABCDEFG_ABCDEFG_A,ABCDEFG_ABCDEFG_B)",
@@ -33,8 +33,8 @@
     "Stack(ABCDEFG_ABCDEFG_B).delete"
   ],
   "buffer": {
-    "inst_in": "Stack(B).push",
-    "inst_out": "Stack(B).pop"
+    "command_in": "Stack(B).push",
+    "command_out": "Stack(B).pop"
   },
   "steps_limit": 6
 }

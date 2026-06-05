@@ -16,7 +16,7 @@ public class Push implements StructureMethod {
         FakeStack obj = (FakeStack) context.getObject(FakeStack.TYPE_ID, objName);
         if (obj != null) {
             if (context.getandresetIsPlayerAction()) {
-                context.triggerEngineCommand(context.getBufferInstOut()); 
+                context.triggerEngineCommand(context.getBufferCommandOut()); 
             }
             Integer val = context.popFromBuffer();
             if (val != null) {

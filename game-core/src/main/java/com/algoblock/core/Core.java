@@ -27,27 +27,32 @@ class TerminalUtils {
 public class Core {
 
     private final RuntimeContext runtimeContext = new RuntimeContext(this);
-    
-    // 关卡配置不再分散拷贝，直接持有完整的实例，贯穿生命周期
+
+
+    private final Map<String, CommandructionDefinition> identityToCommandruction = new HashMap<>();
     private LevelConfig levelConfig;
-
-    // 1. 物理结构体数组：存储所有指令行记录
-    private final List<InstructionDefinition> instructionTable = new ArrayList<>();
-    // 2. 联合键索引表：联合键 ("Queue_init_full") -> 数组下标
-    private final Map<String, Integer> identityToIndex = new HashMap<>();
-    // 3. 结构空间索引表：结构ID ("Queue") -> 该结构注册的所有指令的下标数组
-    private final Map<String, List<Integer>> structToIndices = new HashMap<>();
-
-    // 维持底层架构执行所需的结构体实例映射
+    private final Map<String, List<CommandructionDefinition>> structToCommandructions = new HashMap<>();
     private final Map<String, Abstract> structureTemplates = new HashMap<>();
 
+
+    private Map<String, Integer> commandsAllowed;
+    private int stepsLimit;
+
     public void loadLevel(int levelIndex) {
-        // 1. 插入行：从外部加载器获取已解析好 JSON 数据的实例并全局持有
+        // 从外部加载器获取已解析好 JSON 数据的实例
         levelConfig = LevelConfigLoader.getConfig(levelIndex);
-        
         if (levelConfig.buffer != null) {
-            runtimeContext.setBufferConfig(levelConfig.buffer.instIn, levelConfig.buffer.instOut);
+            runtimeContext.setBufferConfig(levelConfig.buffer.commandIn, levelConfig.buffer.commandOut);
         }
+
+        commandsAllowed = new HashMap<>();        
+        if (levelConfig.commandsAllowed != null) {
+            for (LevelConfig.CommandConfig commandConfig : levelConfig.commandsAllowed) {
+                commandsAllowed.put(commandConfig.struct + "_" + commandConfig.commandId, commandConfig.maxUses);
+            }
+        }
+
+        stepsLimit = levelConfig.stepsLimit;
     }
 
     public RuntimeContext getRuntimeContext() {
@@ -59,7 +64,8 @@ public class Core {
         com.algoblock.config.StructureRegistry  
             registryConfig = com.algoblock.util.StructureRegistryLoader.getRegistry();
         Map<String, String> registry = new HashMap<>();
-        
+        //registry.put("Queue", "com.algoblock.structure.queue.FakeQueue");
+        //registry.put("Stack", "com.algoblock.structure.stack.FakeStack");
         // 3. 遍历当前关卡启用的结构体
         for (String struct : levelConfig.structUsed) {
             // 4. 从实例里找到对应的相对路径字符串 (如 "queue/FakeQueue.java")
@@ -83,20 +89,15 @@ public class Core {
             try {
                 Abstract structInstance = (Abstract) Class.forName(fqcn).getDeclaredConstructor().newInstance();
                 structureTemplates.put(struct, structInstance);
-                structToIndices.put(struct, new ArrayList<>());
+                structToCommandructions.put(struct, new ArrayList<>());
 
                 Map<String, String> patternsMap = structInstance.getPatterns();
                 for (Map.Entry<String, String> entry : patternsMap.entrySet()) {
-                    String instId = entry.getKey();
-                    InstructionDefinition def = new InstructionDefinition(struct, instId, entry.getValue());
+                    CommandructionDefinition def = new CommandructionDefinition(struct, entry.getKey(), entry.getValue());
                     def.setMaxUses(0); // 初始化设为 0
-                    
-                    int newIndex = instructionTable.size();
-                    instructionTable.add(def);
-                    identityToIndex.put(struct + "_" + instId, newIndex);
-                    structToIndices.get(struct).add(newIndex);
-                    
-                    System.out.println("[Debug] -> [" + struct + "] 成功挂载预设指令: " + instId + " | Pattern: "
+                    identityToCommandruction.put(struct + "_" + entry.getKey(), def);
+                    structToCommandructions.get(struct).add(def);
+                    System.out.println("[Debug] -> [" + struct + "] 成功挂载预设指令: " + entry.getKey() + " | Pattern: "
                             + entry.getValue());
                 }
             } catch (Exception e) {
@@ -107,41 +108,39 @@ public class Core {
 
     public void initAllowedLimits() {
         System.out.println("\n[Debug] === 阶段二: 遍历授权名单更新权限 / 动态拉取新指令 ===");
-        if (levelConfig.instsAllowed == null) return;
+        for (Map.Entry<String, Integer> entry : commandsAllowed.entrySet()) {
+            String identityKey = entry.getKey();
+            String[] parts = identityKey.split("_", 2);
+            if (parts.length < 2)
+                continue;
+            String structId = parts[0];
+            String commandId = parts[1];
 
-        for (LevelConfig.InstConfig instConfig : levelConfig.instsAllowed) {
-            String structId = instConfig.struct;
-            String instId = instConfig.instId;
-            String identityKey = structId + "_" + instId;
-            int maxUses = instConfig.maxUses;
+            System.out
+                    .println("[Debug] 处理授权清单: 结构[" + structId + "] - 指令[" + commandId + "] -> 授权配额: " + entry.getValue());
 
-            System.out.println("[Debug] 处理授权清单: 结构[" + structId + "] - 指令[" + instId + "] -> 授权配额: " + maxUses);
+            CommandructionDefinition existingDef = identityToCommandruction.get(identityKey);
+            System.out.println("[Debug]   |- 预设缓存匹配情况: " + (existingDef != null));
 
-            Integer index = identityToIndex.get(identityKey);
-            System.out.println("[Debug]   |- 预设缓存匹配情况: " + (index != null));
-
-            if (index != null) {
-                instructionTable.get(index).setMaxUses(maxUses);
+            if (existingDef != null) {
+                existingDef.setMaxUses(entry.getValue());
                 System.out.println("[Debug]   |- [完毕] 仅更新配额上限");
             } else {
                 System.out.println("[Debug]   |- 触发向下层架构反射请求");
                 Abstract structTemplate = structureTemplates.get(structId);
                 if (structTemplate != null) {
-                    boolean loaded = structTemplate.loadMethodDynamically(instId);
+                    boolean loaded = structTemplate.loadMethodDynamically(commandId);
                     System.out.println("[Debug]   |- 底层架构反馈加载结果: " + loaded);
                     if (loaded) {
-                        String pattern = structTemplate.getPatterns().get(instId);
-                        InstructionDefinition newDef = new InstructionDefinition(structId, instId, pattern);
-                        newDef.setMaxUses(maxUses);
+                        String pattern = structTemplate.getPatterns().get(commandId);
+                        CommandructionDefinition newDef = new CommandructionDefinition(structId, commandId, pattern);
+                        newDef.setMaxUses(entry.getValue());
 
-                        int newIndex = instructionTable.size();
-                        instructionTable.add(newDef);
-                        identityToIndex.put(identityKey, newIndex);
-                        
-                        if (!structToIndices.containsKey(structId)) {
-                            structToIndices.put(structId, new ArrayList<>());
+                        identityToCommandruction.put(identityKey, newDef);
+                        if (!structToCommandructions.containsKey(structId)) {
+                            structToCommandructions.put(structId, new ArrayList<>());
                         }
-                        structToIndices.get(structId).add(newIndex);
+                        structToCommandructions.get(structId).add(newDef);
                         System.out.println("[Debug]   |- [完毕] 指令已动态组装加入引擎库. Pattern: " + pattern);
                     }
                 }
@@ -153,7 +152,7 @@ public class Core {
      * [致命 Bug 修订]: 全字符穷举判定
      * 解决了截断匹配导致 Queue(A).pop 误命中了 Queue(@) 的问题。
      */
-    private String[] extractArgumentsFast(InstructionDefinition def, String statement) {
+    private String[] extractArgumentsFast(CommandructionDefinition def, String statement) {
         String[] literals = def.getLiterals();
         List<String> args = new ArrayList<>(literals.length - 1);
         int cursor = 0;
@@ -204,15 +203,13 @@ public class Core {
         String structId = extractStructId(statement);
         System.out.println("[Debug] -> O(1) 预检定位到的主结构体 ID 为: " + structId);
 
-        List<Integer> indices = structToIndices.get(structId);
-        if (indices == null) {
+        List<CommandructionDefinition> defs = structToCommandructions.get(structId);
+        if (defs == null) {
             System.out.println("[Debug] -> [拦截] 未找到结构体 [" + structId + "] 的相关指令库");
             return false;
         }
 
-        for (Integer idx : indices) {
-            InstructionDefinition def = instructionTable.get(idx);
-            
+        for (CommandructionDefinition def : defs) {
             // [玩家权限校验 Bug 修复]：执行者是玩家时，若配额不足或为零（系统指令），直接将此模式剔除出匹配范围
             if (isPlayerAction) {
                 if (def.getMaxUses() <= 0)
@@ -225,7 +222,7 @@ public class Core {
             if (args != null) {
                 System.out.println("[Debug] -> [匹配成功] 成功锁定指令!");
                 System.out.println("[Debug]    |- 结构 ID: " + def.getStructId());
-                System.out.println("[Debug]    |- 指令 ID: " + def.getInstId());
+                System.out.println("[Debug]    |- 指令 ID: " + def.getCommandId());
                 System.out.println("[Debug]    |- Pattern: " + def.getPattern());
                 System.out.println("[Debug]    |- 提取参数: " + Arrays.toString(args));
 
@@ -235,9 +232,9 @@ public class Core {
                 }
 
                 Abstract template = structureTemplates.get(def.getStructId());
-                System.out.println("[Debug] -> 即将向子结构 [" + def.getStructId() + "] 抛出 executeInstruction 调度");
+                System.out.println("[Debug] -> 即将向子结构 [" + def.getStructId() + "] 抛出 executeCommandruction 调度");
                 runtimeContext.setIsPlayerAction(isPlayerAction); // 设置当前执行上下文的玩家指令标志
-                template.executeInstruction(def.getInstId(), args, runtimeContext); // 结构端分发器：引擎将提取好的参数传递给结构
+                template.executeCommandruction(def.getCommandId(), args, runtimeContext); // 结构端分发器：引擎将提取好的参数传递给结构
                 runtimeContext.setIsPlayerAction(false); // 重置玩家指令标志，防止连锁误触
                 return true;
             }
@@ -306,14 +303,12 @@ public class Core {
             boolean isDeadEnd = true;
             Set<String> uniqueOptions = new LinkedHashSet<>();
 
-            for (Map.Entry<String, List<Integer>> entry : structToIndices.entrySet()) {
+            for (Map.Entry<String, List<CommandructionDefinition>> entry : structToCommandructions.entrySet()) {
                 String structId = entry.getKey();
                 // [结构命名空间隔离]：此时 @ 严格与该特定结构的对象群绑定
                 Set<String> activeVars = runtimeContext.getActiveObjectNames(structId);
 
-                for (Integer idx : entry.getValue()) {
-                    InstructionDefinition def = instructionTable.get(idx);
-                    
+                for (CommandructionDefinition def : entry.getValue()) {
                     // 预测范围过滤：玩家无法使用的指令不得提供 UI 补全联想
                     if (def.getMaxUses() > 0 && def.getUsedCount() < def.getMaxUses()) {
 
@@ -404,15 +399,15 @@ public class Core {
         initAllowedLimits();
 
         System.out.println("\n--- 初始化阶段 ---");
-        for (String initInst : levelConfig.initInsts) {
-            executeStatement(initInst, false);
+        for (String initCommand : levelConfig.initCommands) {
+            executeStatement(initCommand, false);
         }
 
         System.out.println("\n--- 进入关卡主循环 ---");
         Scanner scanner = new Scanner(System.in);
         int currentStep = 0;
 
-        while (currentStep < levelConfig.stepsLimit) {
+        while (currentStep < stepsLimit) {
             System.out.println("\n[步骤1] 归零游戏对象栈的两个变量");
             runtimeContext.resetCheckCounts();
 
@@ -426,8 +421,8 @@ public class Core {
             if (!executed)
                 continue;
 
-            System.out.println("[步骤5] 执行完后对judge_insts里的语句顺序逐一执行");
-            for (String judge : levelConfig.judgeInsts) {
+            System.out.println("[步骤5] 执行完后对judge_commands里的语句顺序逐一执行");
+            for (String judge : levelConfig.judgeCommands) {
                 executeStatement(judge, false);
             }
 
@@ -439,12 +434,12 @@ public class Core {
                 System.out.println("[过关] 判定条件通过！游戏胜利！");
                 break;
             } else {
-                System.out.println("[循环] 判定未通过，继续循环。剩余步数: " + (levelConfig.stepsLimit - currentStep - 1));
+                System.out.println("[循环] 判定未通过，继续循环。剩余步数: " + (stepsLimit - currentStep - 1));
             }
             currentStep++;
         }
 
-        if (currentStep >= levelConfig.stepsLimit && !runtimeContext.isWinConditionMet()) {
+        if (currentStep >= stepsLimit && !runtimeContext.isWinConditionMet()) {
             System.out.println("[结算] 达到最大步数限制，游戏结束。");
         }
         scanner.close();

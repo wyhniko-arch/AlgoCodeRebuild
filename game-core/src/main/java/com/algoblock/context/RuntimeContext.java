@@ -17,8 +17,8 @@ public class RuntimeContext {
     private final Queue<Integer> buffer = new LinkedList<>();
     
     private boolean isPlayerAction;
-    private String bufferInstIn;
-    private String bufferInstOut;
+    private String bufferCommandIn;
+    private String bufferCommandOut;
 
     private int runCheckCount = 0;
     private int passedCheckCount = 0;
@@ -51,16 +51,16 @@ public class RuntimeContext {
         return names;
     }
 
-    public void setBufferConfig(String instIn, String instOut) {
-        this.bufferInstIn = instIn;
-        this.bufferInstOut = instOut;
+    public void setBufferConfig(String commandIn, String commandOut) {
+        this.bufferCommandIn = commandIn;
+        this.bufferCommandOut = commandOut;
     }
 
     public void pushToBuffer(int value) { buffer.offer(value); }
     public Integer popFromBuffer() { return buffer.poll(); }
     public void clearBuffer() { buffer.clear(); }
-    public String getBufferInstIn() { return bufferInstIn; }
-    public String getBufferInstOut() { return bufferInstOut; }
+    public String getBufferCommandIn() { return bufferCommandIn; }
+    public String getBufferCommandOut() { return bufferCommandOut; }
     public void resetCheckCounts() { this.runCheckCount = 0; this.passedCheckCount = 0; }
     public void incrementRunCheck() { this.runCheckCount++; }
     public void incrementPassedCheck() { this.passedCheckCount++; }

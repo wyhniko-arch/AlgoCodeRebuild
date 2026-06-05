@@ -24,7 +24,7 @@ public class Pop implements StructureMethod {
                 context.pushToBuffer(val);
             }
             if (context.getandresetIsPlayerAction()) { //如果是玩家指令则触发连锁
-                context.triggerEngineCommand(context.getBufferInstIn());
+                context.triggerEngineCommand(context.getBufferCommandIn());
             }
         }
     }

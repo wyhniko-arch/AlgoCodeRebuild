@@ -17,7 +17,7 @@ public class Add implements StructureMethod {
         FakeQueue obj = (FakeQueue) context.getObject(FakeQueue.TYPE_ID, objName);
         if (obj != null) {
             if (context.getandresetIsPlayerAction()) { //如果是玩家指令则触发连锁
-                context.triggerEngineCommand(context.getBufferInstOut()); 
+                context.triggerEngineCommand(context.getBufferCommandOut()); 
             }
             Integer val = context.popFromBuffer();
             if (val != null) {

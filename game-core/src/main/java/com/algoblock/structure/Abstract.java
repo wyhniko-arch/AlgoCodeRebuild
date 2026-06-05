@@ -30,29 +30,29 @@ public abstract class Abstract {
     /**
      * 结构端分发器：引擎将提取好的参数传递给结构
      */
-    public void executeInstruction(String instId, String[] args, RuntimeContext context) {
-        StructureMethod method = loadedMethods.get(instId);
+    public void executeInstruction(String commandId, String[] args, RuntimeContext context) {
+        StructureMethod method = loadedMethods.get(commandId);
         if (method != null) {
             method.execute(args, context);
         } else {
             // 动态获取子类类名，保留精确日志
-            System.err.println("[拦截] 未能在 " + this.getClass().getSimpleName() + " 中找到并执行指令: " + instId);
+            System.err.println("[拦截] 未能在 " + this.getClass().getSimpleName() + " 中找到并执行指令: " + commandId);
         }
     }
 
-    public boolean loadMethodDynamically(String instId) {
-        if (!loadedMethods.containsKey(instId) && methodRegistry.containsKey(instId)) {
-            String fqcn = methodRegistry.get(instId);
+    public boolean loadMethodDynamically(String commandId) {
+        if (!loadedMethods.containsKey(commandId) && methodRegistry.containsKey(commandId)) {
+            String fqcn = methodRegistry.get(commandId);
             try {
                 StructureMethod methodInstance = (StructureMethod) Class.forName(fqcn).getDeclaredConstructor().newInstance();
-                loadedMethods.put(instId, methodInstance);
+                loadedMethods.put(commandId, methodInstance);
                 return true;
             } catch (Exception e) {
                 // 精确捕捉目标类全限定名(fqcn)，保留排错细节
-                System.err.println("[错误] " + this.getClass().getSimpleName() + " 指令加载失败: " + instId + "，目标类: " + fqcn);
+                System.err.println("[错误] " + this.getClass().getSimpleName() + " 指令加载失败: " + commandId + "，目标类: " + fqcn);
                 return false;
             }
         }
-        return loadedMethods.containsKey(instId);
+        return loadedMethods.containsKey(commandId);
     }
 }
