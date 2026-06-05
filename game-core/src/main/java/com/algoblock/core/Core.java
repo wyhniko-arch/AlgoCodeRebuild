@@ -29,9 +29,9 @@ public class Core {
     private final RuntimeContext runtimeContext = new RuntimeContext(this);
 
 
-    private final Map<String, CommandructionDefinition> identityToCommandruction = new HashMap<>();
+    private final Map<String, InstructionDefinition> identityToInstruction = new HashMap<>();
     private LevelConfig levelConfig;
-    private final Map<String, List<CommandructionDefinition>> structToCommandructions = new HashMap<>();
+    private final Map<String, List<InstructionDefinition>> structToInstructions = new HashMap<>();
     private final Map<String, Abstract> structureTemplates = new HashMap<>();
 
 
@@ -89,14 +89,14 @@ public class Core {
             try {
                 Abstract structInstance = (Abstract) Class.forName(fqcn).getDeclaredConstructor().newInstance();
                 structureTemplates.put(struct, structInstance);
-                structToCommandructions.put(struct, new ArrayList<>());
+                structToInstructions.put(struct, new ArrayList<>());
 
                 Map<String, String> patternsMap = structInstance.getPatterns();
                 for (Map.Entry<String, String> entry : patternsMap.entrySet()) {
-                    CommandructionDefinition def = new CommandructionDefinition(struct, entry.getKey(), entry.getValue());
+                    InstructionDefinition def = new InstructionDefinition(struct, entry.getKey(), entry.getValue());
                     def.setMaxUses(0); // 初始化设为 0
-                    identityToCommandruction.put(struct + "_" + entry.getKey(), def);
-                    structToCommandructions.get(struct).add(def);
+                    identityToInstruction.put(struct + "_" + entry.getKey(), def);
+                    structToInstructions.get(struct).add(def);
                     System.out.println("[Debug] -> [" + struct + "] 成功挂载预设指令: " + entry.getKey() + " | Pattern: "
                             + entry.getValue());
                 }
@@ -119,7 +119,7 @@ public class Core {
             System.out
                     .println("[Debug] 处理授权清单: 结构[" + structId + "] - 指令[" + commandId + "] -> 授权配额: " + entry.getValue());
 
-            CommandructionDefinition existingDef = identityToCommandruction.get(identityKey);
+            InstructionDefinition existingDef = identityToInstruction.get(identityKey);
             System.out.println("[Debug]   |- 预设缓存匹配情况: " + (existingDef != null));
 
             if (existingDef != null) {
@@ -133,14 +133,14 @@ public class Core {
                     System.out.println("[Debug]   |- 底层架构反馈加载结果: " + loaded);
                     if (loaded) {
                         String pattern = structTemplate.getPatterns().get(commandId);
-                        CommandructionDefinition newDef = new CommandructionDefinition(structId, commandId, pattern);
+                        InstructionDefinition newDef = new InstructionDefinition(structId, commandId, pattern);
                         newDef.setMaxUses(entry.getValue());
 
-                        identityToCommandruction.put(identityKey, newDef);
-                        if (!structToCommandructions.containsKey(structId)) {
-                            structToCommandructions.put(structId, new ArrayList<>());
+                        identityToInstruction.put(identityKey, newDef);
+                        if (!structToInstructions.containsKey(structId)) {
+                            structToInstructions.put(structId, new ArrayList<>());
                         }
-                        structToCommandructions.get(structId).add(newDef);
+                        structToInstructions.get(structId).add(newDef);
                         System.out.println("[Debug]   |- [完毕] 指令已动态组装加入引擎库. Pattern: " + pattern);
                     }
                 }
@@ -152,7 +152,7 @@ public class Core {
      * [致命 Bug 修订]: 全字符穷举判定
      * 解决了截断匹配导致 Queue(A).pop 误命中了 Queue(@) 的问题。
      */
-    private String[] extractArgumentsFast(CommandructionDefinition def, String statement) {
+    private String[] extractArgumentsFast(InstructionDefinition def, String statement) {
         String[] literals = def.getLiterals();
         List<String> args = new ArrayList<>(literals.length - 1);
         int cursor = 0;
@@ -203,13 +203,13 @@ public class Core {
         String structId = extractStructId(statement);
         System.out.println("[Debug] -> O(1) 预检定位到的主结构体 ID 为: " + structId);
 
-        List<CommandructionDefinition> defs = structToCommandructions.get(structId);
+        List<InstructionDefinition> defs = structToInstructions.get(structId);
         if (defs == null) {
             System.out.println("[Debug] -> [拦截] 未找到结构体 [" + structId + "] 的相关指令库");
             return false;
         }
 
-        for (CommandructionDefinition def : defs) {
+        for (InstructionDefinition def : defs) {
             // [玩家权限校验 Bug 修复]：执行者是玩家时，若配额不足或为零（系统指令），直接将此模式剔除出匹配范围
             if (isPlayerAction) {
                 if (def.getMaxUses() <= 0)
@@ -232,9 +232,9 @@ public class Core {
                 }
 
                 Abstract template = structureTemplates.get(def.getStructId());
-                System.out.println("[Debug] -> 即将向子结构 [" + def.getStructId() + "] 抛出 executeCommandruction 调度");
+                System.out.println("[Debug] -> 即将向子结构 [" + def.getStructId() + "] 抛出 executeInstruction 调度");
                 runtimeContext.setIsPlayerAction(isPlayerAction); // 设置当前执行上下文的玩家指令标志
-                template.executeCommandruction(def.getCommandId(), args, runtimeContext); // 结构端分发器：引擎将提取好的参数传递给结构
+                template.executeInstruction(def.getCommandId(), args, runtimeContext); // 结构端分发器：引擎将提取好的参数传递给结构
                 runtimeContext.setIsPlayerAction(false); // 重置玩家指令标志，防止连锁误触
                 return true;
             }
@@ -303,12 +303,12 @@ public class Core {
             boolean isDeadEnd = true;
             Set<String> uniqueOptions = new LinkedHashSet<>();
 
-            for (Map.Entry<String, List<CommandructionDefinition>> entry : structToCommandructions.entrySet()) {
+            for (Map.Entry<String, List<InstructionDefinition>> entry : structToInstructions.entrySet()) {
                 String structId = entry.getKey();
                 // [结构命名空间隔离]：此时 @ 严格与该特定结构的对象群绑定
                 Set<String> activeVars = runtimeContext.getActiveObjectNames(structId);
 
-                for (CommandructionDefinition def : entry.getValue()) {
+                for (InstructionDefinition def : entry.getValue()) {
                     // 预测范围过滤：玩家无法使用的指令不得提供 UI 补全联想
                     if (def.getMaxUses() > 0 && def.getUsedCount() < def.getMaxUses()) {
 
