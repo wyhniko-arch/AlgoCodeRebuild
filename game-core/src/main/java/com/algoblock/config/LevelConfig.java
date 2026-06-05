@@ -29,6 +29,7 @@ public class LevelConfig {
     public int stepsLimit;
 
     public static class CommandConfig {
+        @SerializedName("struct_id")
         public String structId;
         
         @SerializedName("command_id")

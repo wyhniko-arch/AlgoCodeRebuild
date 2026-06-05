@@ -4,22 +4,22 @@
   "struct_used": ["Queue", "Stack"],
   "commands_allowed": [
     {
-      "struct": "Queue",
+      "struct_id": "Queue",
       "command_id": "pop",
       "max_uses": 6
     },
     {
-      "struct": "Queue",
+      "struct_id": "Queue",
       "command_id": "add",
       "max_uses": 6
     },
     {
-      "struct": "Stack",
+      "struct_id": "Stack",
       "command_id": "pop",
       "max_uses": 0
     },
     {
-      "struct": "Stack",
+      "struct_id": "Stack",
       "command_id": "push",
       "max_uses": 0
     }
