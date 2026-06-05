@@ -25,47 +25,36 @@ class TerminalUtils {
 }
 
 public class Core {
-
-    private final RuntimeContext runtimeContext = new RuntimeContext(this);
-
-
-    private final Map<String, CommandDefinition> identityToCommand = new HashMap<>();
-    private LevelConfig levelConfig;
-    private final Map<String, List<CommandDefinition>> structToCommands = new HashMap<>();
-    private final Map<String, Abstract> structureTemplates = new HashMap<>();
-    public void loadLevel(int levelIndex) {
-        // 从外部加载器获取已解析好 JSON 数据的实例
+    private final RuntimeContext runtimeContext = new RuntimeContext(this);//与Core同周期
+    private LevelConfig levelConfig;// 关卡与Core同周期
+    private final Map<String, CommandDefinition> struct_command_idToCommand = new HashMap<>();// 结构id_指令id快速定位到指令记录
+    private final Map<String, List<CommandDefinition>> struct_idToCommands = new HashMap<>();// 结构id快速定位到指令记录表
+    private final Map<String, Abstract> structidToStructure = new HashMap<>();// 结构id快速定位到结构
+    public void loadLevel(int levelIndex) {// 从外部加载器获取已解析好JSON数据的关卡实例
         levelConfig = LevelConfigLoader.getConfig(levelIndex);
         if (levelConfig.buffer != null) {
             runtimeContext.setBufferConfig(levelConfig.buffer.commandIn, levelConfig.buffer.commandOut);
         }
     }
-
-    public void registerStructures() {
+    public void registerStructures() {// 遍历关卡的结构注册表，加载基础指令
         System.out.println("\n[Debug] === 阶段一: 加载物理结构与挂载基础指令 ===");
         com.algoblock.config.StructureRegistry registryConfig = com.algoblock.util.StructureRegistryLoader.getRegistry();
-        for (String struct : levelConfig.structUsed) {
-            String fqcn = registryConfig.getFQCN(struct);
+        for (String structId : levelConfig.structUsed) {// 
+            String fqcn = registryConfig.getFQCN(structId);
             if (fqcn == null) {
-                throw new RuntimeException("配置错误：在注册表实例中未找到结构体 [" + struct + "] 的定义");
+                throw new RuntimeException("配置错误：在注册表实例中未找到结构体 [" + structId + "] 的定义");
             }
-            // 后续业务逻辑直接使用 fqcn 即可
-        }
-        
-        for (String struct : levelConfig.structUsed) {
-            String fqcn = registryConfig.getFQCN(struct);
-            try {
-                Abstract structInstance = (Abstract) Class.forName(fqcn).getDeclaredConstructor().newInstance();
-                structureTemplates.put(struct, structInstance);
-                structToCommands.put(struct, new ArrayList<>());
 
-                Map<String, String> patternsMap = structInstance.getPatterns();
-                for (Map.Entry<String, String> entry : patternsMap.entrySet()) {
-                    CommandDefinition def = new CommandDefinition(struct, entry.getKey(), entry.getValue());
-                    def.setMaxUses(0); // 初始化设为 0
-                    identityToCommand.put(struct + "_" + entry.getKey(), def);
-                    structToCommands.get(struct).add(def);
-                    System.out.println("[Debug] -> [" + struct + "] 成功挂载预设指令: " + entry.getKey() + " | Pattern: "
+            try {
+                Abstract structInstance = (Abstract) Class.forName(fqcn).getDeclaredConstructor().newInstance(); // 新建结构实例
+                structidToStructure.put(structId, structInstance); //结构实例的引用打入结构id-实例引用映射
+                struct_idToCommands.put(structId, new ArrayList<>()); //初始化结构id-指令记录表引用映射
+                for (Map.Entry<String, String> entry : structInstance.getPatterns().entrySet()) { // 遍历该实例默认指令记录表
+                    CommandDefinition newDef = new CommandDefinition(structId, entry.getKey(), entry.getValue()); // 新建指令记录
+                    newDef.setMaxUses(0); // 默认玩家无使用次数
+                    struct_command_idToCommand.put(structId + "_" + entry.getKey(), newDef); // 将指令记录的引用打入双id-指令记录引用映射
+                    struct_idToCommands.get(structId).add(newDef); // 将指令记录的引用加入id-指令记录表引用中
+                    System.out.println("[Debug] -> [" + structId + "] 成功挂载预设指令: " + entry.getKey() + " | Pattern: "
                             + entry.getValue());
                 }
             } catch (Exception e) {
@@ -76,31 +65,28 @@ public class Core {
     public void initAllowedLimits() {
         System.out.println("\n[Debug] === 阶段二: 遍历授权名单更新权限 / 动态拉取新指令 ===");
         for (LevelConfig.CommandConfig commandAllowed : levelConfig.commandsAllowed) {
-            int maxUses = commandAllowed.maxUses;
-            String identityKey = commandAllowed.structId + "_" + commandAllowed.commandId;
-            System.out.println("[Debug] 处理授权清单: 结构[" + commandAllowed.structId + "] - 指令[" + commandAllowed.commandId + "] -> 授权配额: " + maxUses);
-            CommandDefinition existingDef = identityToCommand.get(identityKey);
-            System.out.println("[Debug]   |- 预设缓存匹配情况: " + (existingDef != null));
-
-            if (existingDef != null) {
-                existingDef.setMaxUses(maxUses);
+            String struct_command_id = commandAllowed.structId + "_" + commandAllowed.commandId;
+            System.out.println("[Debug] 处理授权清单: 结构[" + commandAllowed.structId + "] - 指令[" + commandAllowed.commandId + "] -> 授权配额: " + commandAllowed.maxUses);
+            CommandDefinition oldDef = struct_command_idToCommand.get(struct_command_id);
+            System.out.println("[Debug]   |- 预设缓存匹配情况: " + (oldDef != null));
+            if (oldDef != null) {
+                oldDef.setMaxUses(commandAllowed.maxUses);
                 System.out.println("[Debug]   |- [完毕] 仅更新配额上限");
             } else {
                 System.out.println("[Debug]   |- 触发向下层架构反射请求");
-                Abstract structTemplate = structureTemplates.get(commandAllowed.structId);
+                Abstract structTemplate = structidToStructure.get(commandAllowed.structId);
                 if (structTemplate != null) {
-                    boolean loaded = structTemplate.loadMethodDynamically(commandAllowed.commandId);
+                    boolean loaded = structTemplate.ifLoadMethodDynamically(commandAllowed.commandId); //是否成功动态加载
                     System.out.println("[Debug]   |- 底层架构反馈加载结果: " + loaded);
                     if (loaded) {
                         String pattern = structTemplate.getPatterns().get(commandAllowed.commandId);
-                        CommandDefinition newDef = new CommandDefinition(commandAllowed.structId, commandAllowed.commandId, pattern);
-                        newDef.setMaxUses(maxUses);
-
-                        identityToCommand.put(identityKey, newDef);
-                        if (!structToCommands.containsKey(commandAllowed.structId)) {
-                            structToCommands.put(commandAllowed.structId, new ArrayList<>());
+                        CommandDefinition newDef = new CommandDefinition(commandAllowed.structId, commandAllowed.commandId, pattern); // 新建指令记录
+                        newDef.setMaxUses(commandAllowed.maxUses); // 使用次数设为设置值
+                        struct_command_idToCommand.put(struct_command_id, newDef); // 将指令记录的引用打入双id-指令记录引用映射
+                        if (!struct_idToCommands.containsKey(commandAllowed.structId)) { //不包含当前指令记录的结构id，则需要先初始化防崩
+                            struct_idToCommands.put(commandAllowed.structId, new ArrayList<>());
                         }
-                        structToCommands.get(commandAllowed.structId).add(newDef);
+                        struct_idToCommands.get(commandAllowed.structId).add(newDef); // 将指令记录的引用加入id-指令记录表引用中
                         System.out.println("[Debug]   |- [完毕] 指令已动态组装加入引擎库. Pattern: " + pattern);
                     }
                 }
@@ -109,13 +95,13 @@ public class Core {
     }
     public void executeInitCommands() {
         System.out.println("\n--- 初始化阶段 ---");
-        for (String initCommand : levelConfig.initCommands) {
+        for (String initCommand : levelConfig.initCommands) { // 遍历初始化指令逐一执行
             executeStatement(initCommand, false);
         }
     }
     public void executeJudgeCommands() {
-        System.out.println("执行完后对judge_commands里的语句顺序逐一执行");
-        for (String judge : levelConfig.judgeCommands) {
+        System.out.println("\n--- 判分阶段 ---");
+        for (String judge : levelConfig.judgeCommands) { // 遍历判分指令逐一执行
             executeStatement(judge, false);
         }
     }
@@ -167,7 +153,7 @@ public class Core {
         System.out.println("[Debug] >>> 引擎开始路由分析语句: " + statement + " | 执行主体: " + (isPlayerAction ? "玩家" : "系统"));
         String structId = extractStructId(statement);
         System.out.println("[Debug] -> O(1) 预检定位到的主结构体 ID 为: " + structId);
-        List<CommandDefinition> defs = structToCommands.get(structId);
+        List<CommandDefinition> defs = struct_idToCommands.get(structId);
         if (defs == null) {
             System.out.println("[Debug] -> [拦截] 未找到结构体 [" + structId + "] 的相关指令库");
             return false;
@@ -193,7 +179,7 @@ public class Core {
                     System.out.println("[Debug]    |- 玩家已用次数更新: " + def.getUsedCount() + " / " + def.getMaxUses());
                 }
 
-                Abstract template = structureTemplates.get(def.getStructId());
+                Abstract template = structidToStructure.get(def.getStructId());
                 System.out.println("[Debug] -> 即将向子结构 [" + def.getStructId() + "] 抛出 executeCommand 调度");
                 runtimeContext.setIsPlayerAction(isPlayerAction); // 设置当前执行上下文的玩家指令标志
                 template.executeCommand(def.getCommandId(), args, runtimeContext); // 结构端分发器：引擎将提取好的参数传递给结构
@@ -265,7 +251,7 @@ public class Core {
             boolean isDeadEnd = true;
             Set<String> uniqueOptions = new LinkedHashSet<>();
 
-            for (Map.Entry<String, List<CommandDefinition>> entry : structToCommands.entrySet()) {
+            for (Map.Entry<String, List<CommandDefinition>> entry : struct_idToCommands.entrySet()) {
                 String structId = entry.getKey();
                 // [结构命名空间隔离]：此时 @ 严格与该特定结构的对象群绑定
                 Set<String> activeVars = runtimeContext.getActiveObjectNames(structId);
