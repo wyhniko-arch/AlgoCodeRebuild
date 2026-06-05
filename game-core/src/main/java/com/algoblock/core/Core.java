@@ -75,12 +75,10 @@ public class Core {
     }
     public void initAllowedLimits() {
         System.out.println("\n[Debug] === 阶段二: 遍历授权名单更新权限 / 动态拉取新指令 ===");
-        for (LevelConfig.CommandConfig command : levelConfig.commandsAllowed) {
-            String structId = command.struct;
-            String commandId = command.commandId;
-            int maxUses = command.maxUses;
-            String identityKey = structId + "_" + commandId;
-            System.out.println("[Debug] 处理授权清单: 结构[" + structId + "] - 指令[" + commandId + "] -> 授权配额: " + maxUses);
+        for (LevelConfig.CommandConfig commandAllowed : levelConfig.commandsAllowed) {
+            int maxUses = commandAllowed.maxUses;
+            String identityKey = commandAllowed.structId + "_" + commandAllowed.commandId;
+            System.out.println("[Debug] 处理授权清单: 结构[" + commandAllowed.structId + "] - 指令[" + commandAllowed.commandId + "] -> 授权配额: " + maxUses);
             CommandDefinition existingDef = identityToCommand.get(identityKey);
             System.out.println("[Debug]   |- 预设缓存匹配情况: " + (existingDef != null));
 
@@ -89,20 +87,20 @@ public class Core {
                 System.out.println("[Debug]   |- [完毕] 仅更新配额上限");
             } else {
                 System.out.println("[Debug]   |- 触发向下层架构反射请求");
-                Abstract structTemplate = structureTemplates.get(structId);
+                Abstract structTemplate = structureTemplates.get(commandAllowed.structId);
                 if (structTemplate != null) {
-                    boolean loaded = structTemplate.loadMethodDynamically(commandId);
+                    boolean loaded = structTemplate.loadMethodDynamically(commandAllowed.commandId);
                     System.out.println("[Debug]   |- 底层架构反馈加载结果: " + loaded);
                     if (loaded) {
-                        String pattern = structTemplate.getPatterns().get(commandId);
-                        CommandDefinition newDef = new CommandDefinition(structId, commandId, pattern);
+                        String pattern = structTemplate.getPatterns().get(commandAllowed.commandId);
+                        CommandDefinition newDef = new CommandDefinition(commandAllowed.structId, commandAllowed.commandId, pattern);
                         newDef.setMaxUses(maxUses);
 
                         identityToCommand.put(identityKey, newDef);
-                        if (!structToCommands.containsKey(structId)) {
-                            structToCommands.put(structId, new ArrayList<>());
+                        if (!structToCommands.containsKey(commandAllowed.structId)) {
+                            structToCommands.put(commandAllowed.structId, new ArrayList<>());
                         }
-                        structToCommands.get(structId).add(newDef);
+                        structToCommands.get(commandAllowed.structId).add(newDef);
                         System.out.println("[Debug]   |- [完毕] 指令已动态组装加入引擎库. Pattern: " + pattern);
                     }
                 }
