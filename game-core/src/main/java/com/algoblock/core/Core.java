@@ -34,10 +34,7 @@ public class Core {
     private final Map<String, List<InstructionDefinition>> structToInstructions = new HashMap<>();
     private final Map<String, Abstract> structureTemplates = new HashMap<>();
 
-
     private Map<String, Integer> commandsAllowed;
-    private int stepsLimit;
-
     public void loadLevel(int levelIndex) {
         // 从外部加载器获取已解析好 JSON 数据的实例
         levelConfig = LevelConfigLoader.getConfig(levelIndex);
@@ -51,8 +48,6 @@ public class Core {
                 commandsAllowed.put(commandConfig.struct + "_" + commandConfig.commandId, commandConfig.maxUses);
             }
         }
-
-        stepsLimit = levelConfig.stepsLimit;
     }
 
     public RuntimeContext getRuntimeContext() {
@@ -61,31 +56,17 @@ public class Core {
 
     public void registerStructures() {
         System.out.println("\n[Debug] === 阶段一: 加载物理结构与挂载基础指令 ===");
-        com.algoblock.config.StructureRegistry  
-            registryConfig = com.algoblock.util.StructureRegistryLoader.getRegistry();
-        Map<String, String> registry = new HashMap<>();
-        //registry.put("Queue", "com.algoblock.structure.queue.FakeQueue");
-        //registry.put("Stack", "com.algoblock.structure.stack.FakeStack");
-        // 3. 遍历当前关卡启用的结构体
+        com.algoblock.config.StructureRegistry registryConfig = com.algoblock.util.StructureRegistryLoader.getRegistry();
         for (String struct : levelConfig.structUsed) {
-            // 4. 从实例里找到对应的相对路径字符串 (如 "queue/FakeQueue.java")
-            String relativePath = registryConfig.getPath(struct);
-            
-            if (relativePath == null) {
+            String fqcn = registryConfig.getFQCN(struct);
+            if (fqcn == null) {
                 throw new RuntimeException("配置错误：在注册表实例中未找到结构体 [" + struct + "] 的定义");
             }
-            // 5. 按照大环境规范进行字符串拼接转换
-            String dotNotation = relativePath.replace('/', '.');
-            if (dotNotation.endsWith(".java")) {
-                dotNotation = dotNotation.substring(0, dotNotation.length() - 5);
-            }
-            String fqcn = "com.algoblock.structure." + dotNotation;
-            // 6. 愉快地一个个存入本地 registry 映射表：(结构, 路径)
-            registry.put(struct, fqcn);
+            // 后续业务逻辑直接使用 fqcn 即可
         }
         
         for (String struct : levelConfig.structUsed) {
-            String fqcn = registry.get(struct);
+            String fqcn = registryConfig.getFQCN(struct);
             try {
                 Abstract structInstance = (Abstract) Class.forName(fqcn).getDeclaredConstructor().newInstance();
                 structureTemplates.put(struct, structInstance);
@@ -147,7 +128,18 @@ public class Core {
             }
         }
     }
-
+    public void executeInitCommands() {
+        System.out.println("\n--- 初始化阶段 ---");
+        for (String initCommand : levelConfig.initCommands) {
+            executeStatement(initCommand, false);
+        }
+    }
+    public void executeJudgeCommands() {
+        System.out.println("执行完后对judge_commands里的语句顺序逐一执行");
+        for (String judge : levelConfig.judgeCommands) {
+            executeStatement(judge, false);
+        }
+    }
     /**
      * [致命 Bug 修订]: 全字符穷举判定
      * 解决了截断匹配导致 Queue(A).pop 误命中了 Queue(@) 的问题。
@@ -397,49 +389,29 @@ public class Core {
         loadLevel(levelIndex);
         registerStructures();
         initAllowedLimits();
-
-        System.out.println("\n--- 初始化阶段 ---");
-        for (String initCommand : levelConfig.initCommands) {
-            executeStatement(initCommand, false);
-        }
-
+        executeInitCommands();
         System.out.println("\n--- 进入关卡主循环 ---");
         Scanner scanner = new Scanner(System.in);
         int currentStep = 0;
-
-        while (currentStep < stepsLimit) {
-            System.out.println("\n[步骤1] 归零游戏对象栈的两个变量");
+        while (currentStep < levelConfig.stepsLimit) {
             runtimeContext.resetCheckCounts();
-
-            System.out.println("[步骤2] 等待一个语句输入 (请输入单字符，或控制命令 [tab, del, enter, up, down]):");
+            System.out.println("等待一个语句输入 (请输入单字符，或控制命令 [tab, del, enter, up, down]):");
             String input = interactiveReadCommand(scanner);
-            if ("exit".equalsIgnoreCase(input.trim()))
-                break;
-
-            System.out.println("[步骤3] 检查该语句是否可执行");
+            if ("exit".equalsIgnoreCase(input.trim())) break;
+            System.out.println("检查该语句是否可执行");
             boolean executed = executeStatement(input, true);
-            if (!executed)
-                continue;
-
-            System.out.println("[步骤5] 执行完后对judge_commands里的语句顺序逐一执行");
-            for (String judge : levelConfig.judgeCommands) {
-                executeStatement(judge, false);
-            }
-
-            System.out.println("[步骤6] 清空游戏对象栈的缓冲区");
+        if (!executed) continue;
+            executeJudgeCommands();
             runtimeContext.clearBuffer();
-
-            System.out.println("[步骤7] 判断是否退出大循环");
             if (runtimeContext.isWinConditionMet()) {
                 System.out.println("[过关] 判定条件通过！游戏胜利！");
                 break;
             } else {
-                System.out.println("[循环] 判定未通过，继续循环。剩余步数: " + (stepsLimit - currentStep - 1));
+                System.out.println("[循环] 判定未通过，继续循环。剩余步数: " + (levelConfig.stepsLimit - currentStep - 1));
             }
             currentStep++;
         }
-
-        if (currentStep >= stepsLimit && !runtimeContext.isWinConditionMet()) {
+        if (currentStep >= levelConfig.stepsLimit && !runtimeContext.isWinConditionMet()) {
             System.out.println("[结算] 达到最大步数限制，游戏结束。");
         }
         scanner.close();

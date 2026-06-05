@@ -22,9 +22,8 @@ public class StructureRegistryLoader {
 
         try (Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8)) {
             Type type = new TypeToken<Map<String, String>>(){}.getType();
-            // 1. 先用 GSON 解析出原始 Map
             Map<String, String> rawMap = gson.fromJson(reader, type);
-            // 2. 包装并返回期望的配置实例
+            // 实例化时自动触发构造函数中的路径逻辑解析
             return new StructureRegistry(rawMap);
         } catch (Exception e) {
             throw new RuntimeException("解析全局结构体注册表失败: " + REGISTRY_PATH, e);

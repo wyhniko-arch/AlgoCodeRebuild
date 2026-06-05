@@ -4,21 +4,24 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class StructureRegistry {
-    // 内部持有一个扁平化的映射表，对应 JSON 中的 "Queue": "queue/FakeQueue.java"
-    private Map<String, String> mappings = new HashMap<>();
+    private final Map<String, String> fqcnMap = new HashMap<>();
+    private static final String BASE_PACKAGE = "com.algoblock.structure.";
 
-    public StructureRegistry(Map<String, String> mappings) {
-        if (mappings != null) {
-            this.mappings = mappings;
+    public StructureRegistry(Map<String, String> rawMap) {
+        // 在构造阶段完成逻辑规范化
+        for (Map.Entry<String, String> entry : rawMap.entrySet()) {
+            String relativePath = entry.getValue();
+            
+            String dotNotation = relativePath.replace('/', '.');
+            if (dotNotation.endsWith(".java")) {
+                dotNotation = dotNotation.substring(0, dotNotation.length() - 5);
+            }
+            
+            fqcnMap.put(entry.getKey(), BASE_PACKAGE + dotNotation);
         }
     }
 
-    /**
-     * 根据结构体名称获取其相对路径
-     * @param structName 结构体 ID (如 "Queue")
-     * @return 相对路径 (如 "queue/FakeQueue.java")
-     */
-    public String getPath(String structName) {
-        return mappings.get(structName);
+    public String getFQCN(String structKey) {
+        return fqcnMap.get(structKey);
     }
 }
