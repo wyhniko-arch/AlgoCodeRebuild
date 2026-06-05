@@ -29,29 +29,16 @@ public class Core {
     private final RuntimeContext runtimeContext = new RuntimeContext(this);
 
 
-    private final Map<String, InstructionDefinition> identityToInstruction = new HashMap<>();
+    private final Map<String, CommandDefinition> identityToCommand = new HashMap<>();
     private LevelConfig levelConfig;
-    private final Map<String, List<InstructionDefinition>> structToInstructions = new HashMap<>();
+    private final Map<String, List<CommandDefinition>> structToCommands = new HashMap<>();
     private final Map<String, Abstract> structureTemplates = new HashMap<>();
-
-    private Map<String, Integer> commandsAllowed;
     public void loadLevel(int levelIndex) {
         // 从外部加载器获取已解析好 JSON 数据的实例
         levelConfig = LevelConfigLoader.getConfig(levelIndex);
         if (levelConfig.buffer != null) {
             runtimeContext.setBufferConfig(levelConfig.buffer.commandIn, levelConfig.buffer.commandOut);
         }
-
-        commandsAllowed = new HashMap<>();        
-        if (levelConfig.commandsAllowed != null) {
-            for (LevelConfig.CommandConfig commandConfig : levelConfig.commandsAllowed) {
-                commandsAllowed.put(commandConfig.struct + "_" + commandConfig.commandId, commandConfig.maxUses);
-            }
-        }
-    }
-
-    public RuntimeContext getRuntimeContext() {
-        return runtimeContext;
     }
 
     public void registerStructures() {
@@ -70,14 +57,14 @@ public class Core {
             try {
                 Abstract structInstance = (Abstract) Class.forName(fqcn).getDeclaredConstructor().newInstance();
                 structureTemplates.put(struct, structInstance);
-                structToInstructions.put(struct, new ArrayList<>());
+                structToCommands.put(struct, new ArrayList<>());
 
                 Map<String, String> patternsMap = structInstance.getPatterns();
                 for (Map.Entry<String, String> entry : patternsMap.entrySet()) {
-                    InstructionDefinition def = new InstructionDefinition(struct, entry.getKey(), entry.getValue());
+                    CommandDefinition def = new CommandDefinition(struct, entry.getKey(), entry.getValue());
                     def.setMaxUses(0); // 初始化设为 0
-                    identityToInstruction.put(struct + "_" + entry.getKey(), def);
-                    structToInstructions.get(struct).add(def);
+                    identityToCommand.put(struct + "_" + entry.getKey(), def);
+                    structToCommands.get(struct).add(def);
                     System.out.println("[Debug] -> [" + struct + "] 成功挂载预设指令: " + entry.getKey() + " | Pattern: "
                             + entry.getValue());
                 }
@@ -86,25 +73,19 @@ public class Core {
             }
         }
     }
-
     public void initAllowedLimits() {
         System.out.println("\n[Debug] === 阶段二: 遍历授权名单更新权限 / 动态拉取新指令 ===");
-        for (Map.Entry<String, Integer> entry : commandsAllowed.entrySet()) {
-            String identityKey = entry.getKey();
-            String[] parts = identityKey.split("_", 2);
-            if (parts.length < 2)
-                continue;
-            String structId = parts[0];
-            String commandId = parts[1];
-
-            System.out
-                    .println("[Debug] 处理授权清单: 结构[" + structId + "] - 指令[" + commandId + "] -> 授权配额: " + entry.getValue());
-
-            InstructionDefinition existingDef = identityToInstruction.get(identityKey);
+        for (LevelConfig.CommandConfig command : levelConfig.commandsAllowed) {
+            String structId = command.struct;
+            String commandId = command.commandId;
+            int maxUses = command.maxUses;
+            String identityKey = structId + "_" + commandId;
+            System.out.println("[Debug] 处理授权清单: 结构[" + structId + "] - 指令[" + commandId + "] -> 授权配额: " + maxUses);
+            CommandDefinition existingDef = identityToCommand.get(identityKey);
             System.out.println("[Debug]   |- 预设缓存匹配情况: " + (existingDef != null));
 
             if (existingDef != null) {
-                existingDef.setMaxUses(entry.getValue());
+                existingDef.setMaxUses(maxUses);
                 System.out.println("[Debug]   |- [完毕] 仅更新配额上限");
             } else {
                 System.out.println("[Debug]   |- 触发向下层架构反射请求");
@@ -114,14 +95,14 @@ public class Core {
                     System.out.println("[Debug]   |- 底层架构反馈加载结果: " + loaded);
                     if (loaded) {
                         String pattern = structTemplate.getPatterns().get(commandId);
-                        InstructionDefinition newDef = new InstructionDefinition(structId, commandId, pattern);
-                        newDef.setMaxUses(entry.getValue());
+                        CommandDefinition newDef = new CommandDefinition(structId, commandId, pattern);
+                        newDef.setMaxUses(maxUses);
 
-                        identityToInstruction.put(identityKey, newDef);
-                        if (!structToInstructions.containsKey(structId)) {
-                            structToInstructions.put(structId, new ArrayList<>());
+                        identityToCommand.put(identityKey, newDef);
+                        if (!structToCommands.containsKey(structId)) {
+                            structToCommands.put(structId, new ArrayList<>());
                         }
-                        structToInstructions.get(structId).add(newDef);
+                        structToCommands.get(structId).add(newDef);
                         System.out.println("[Debug]   |- [完毕] 指令已动态组装加入引擎库. Pattern: " + pattern);
                     }
                 }
@@ -144,7 +125,7 @@ public class Core {
      * [致命 Bug 修订]: 全字符穷举判定
      * 解决了截断匹配导致 Queue(A).pop 误命中了 Queue(@) 的问题。
      */
-    private String[] extractArgumentsFast(InstructionDefinition def, String statement) {
+    private String[] extractArgumentsFast(CommandDefinition def, String statement) {
         String[] literals = def.getLiterals();
         List<String> args = new ArrayList<>(literals.length - 1);
         int cursor = 0;
@@ -169,14 +150,10 @@ public class Core {
                 }
             }
         }
-
         // 【核心校验】：确保模式在游标走完时，语句也严丝合缝地被穷尽
-        if (cursor != statement.length())
-            return null;
-
+        if (cursor != statement.length()) return null;
         return args.toArray(new String[0]);
     }
-
     private String extractStructId(String statement) {
         int firstParen = statement.indexOf('(');
         int firstDot = statement.indexOf('.');
@@ -188,20 +165,16 @@ public class Core {
             return statement.substring(0, firstDot);
         return statement;
     }
-
     public boolean executeStatement(String statement, boolean isPlayerAction) {
         System.out.println("[Debug] >>> 引擎开始路由分析语句: " + statement + " | 执行主体: " + (isPlayerAction ? "玩家" : "系统"));
-
         String structId = extractStructId(statement);
         System.out.println("[Debug] -> O(1) 预检定位到的主结构体 ID 为: " + structId);
-
-        List<InstructionDefinition> defs = structToInstructions.get(structId);
+        List<CommandDefinition> defs = structToCommands.get(structId);
         if (defs == null) {
             System.out.println("[Debug] -> [拦截] 未找到结构体 [" + structId + "] 的相关指令库");
             return false;
         }
-
-        for (InstructionDefinition def : defs) {
+        for (CommandDefinition def : defs) {
             // [玩家权限校验 Bug 修复]：执行者是玩家时，若配额不足或为零（系统指令），直接将此模式剔除出匹配范围
             if (isPlayerAction) {
                 if (def.getMaxUses() <= 0)
@@ -209,7 +182,6 @@ public class Core {
                 if (def.getUsedCount() >= def.getMaxUses())
                     continue;
             }
-
             String[] args = extractArgumentsFast(def, statement);
             if (args != null) {
                 System.out.println("[Debug] -> [匹配成功] 成功锁定指令!");
@@ -224,9 +196,9 @@ public class Core {
                 }
 
                 Abstract template = structureTemplates.get(def.getStructId());
-                System.out.println("[Debug] -> 即将向子结构 [" + def.getStructId() + "] 抛出 executeInstruction 调度");
+                System.out.println("[Debug] -> 即将向子结构 [" + def.getStructId() + "] 抛出 executeCommand 调度");
                 runtimeContext.setIsPlayerAction(isPlayerAction); // 设置当前执行上下文的玩家指令标志
-                template.executeInstruction(def.getCommandId(), args, runtimeContext); // 结构端分发器：引擎将提取好的参数传递给结构
+                template.executeCommand(def.getCommandId(), args, runtimeContext); // 结构端分发器：引擎将提取好的参数传递给结构
                 runtimeContext.setIsPlayerAction(false); // 重置玩家指令标志，防止连锁误触
                 return true;
             }
@@ -295,12 +267,12 @@ public class Core {
             boolean isDeadEnd = true;
             Set<String> uniqueOptions = new LinkedHashSet<>();
 
-            for (Map.Entry<String, List<InstructionDefinition>> entry : structToInstructions.entrySet()) {
+            for (Map.Entry<String, List<CommandDefinition>> entry : structToCommands.entrySet()) {
                 String structId = entry.getKey();
                 // [结构命名空间隔离]：此时 @ 严格与该特定结构的对象群绑定
                 Set<String> activeVars = runtimeContext.getActiveObjectNames(structId);
 
-                for (InstructionDefinition def : entry.getValue()) {
+                for (CommandDefinition def : entry.getValue()) {
                     // 预测范围过滤：玩家无法使用的指令不得提供 UI 补全联想
                     if (def.getMaxUses() > 0 && def.getUsedCount() < def.getMaxUses()) {
 

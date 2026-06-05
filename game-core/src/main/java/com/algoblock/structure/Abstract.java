@@ -17,7 +17,7 @@ public abstract class Abstract {
 
     /**
      * 获取当前结构已加载的所有指令的模板映射
-     * @return 映射表 (Instruction ID -> Pattern)
+     * @return 映射表 (Command ID -> Pattern)
      */
     public Map<String, String> getPatterns() {
         Map<String, String> patterns = new HashMap<>();
@@ -30,7 +30,7 @@ public abstract class Abstract {
     /**
      * 结构端分发器：引擎将提取好的参数传递给结构
      */
-    public void executeInstruction(String commandId, String[] args, RuntimeContext context) {
+    public void executeCommand(String commandId, String[] args, RuntimeContext context) {
         StructureMethod method = loadedMethods.get(commandId);
         if (method != null) {
             method.execute(args, context);

@@ -1,6 +1,6 @@
 package com.algoblock.core;
 
-public class InstructionDefinition {
+public class CommandDefinition {
     private final String structId;
     private final String commandId;
     private final String pattern;
@@ -9,7 +9,7 @@ public class InstructionDefinition {
     private int usedCount;
     private int maxUses;
 
-    public InstructionDefinition(String structId, String commandId, String patternStr) {
+    public CommandDefinition(String structId, String commandId, String patternStr) {
         this.structId = structId;
         this.commandId = commandId;
         this.pattern = patternStr;
