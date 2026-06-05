@@ -25,9 +25,12 @@ class TerminalUtils {
 }
 
 public class Core {
+
     private final RuntimeContext runtimeContext = new RuntimeContext(this);
 
+
     private final Map<String, InstructionDefinition> identityToInstruction = new HashMap<>();
+    
     private final Map<String, List<InstructionDefinition>> structToInstructions = new HashMap<>();
     private final Map<String, Abstract> structureTemplates = new HashMap<>();
 
@@ -42,17 +45,19 @@ public class Core {
         LevelConfig config = LevelConfigLoader.getConfig(levelIndex);
         
         structUsed = config.structUsed;
-        instsAllowed = new HashMap<>();
-        if (config.instsAllowed != null) {
-            for (LevelConfig.InstConfig instConfig : config.instsAllowed) {
-                instsAllowed.put(instConfig.struct + "_" + instConfig.instId, instConfig.maxUses);
-            }
-        }
         initInsts = config.initInsts;
         judgeInsts = config.judgeInsts;
         if (config.buffer != null) {
             runtimeContext.setBufferConfig(config.buffer.instIn, config.buffer.instOut);
         }
+
+        instsAllowed = new HashMap<>();        
+        if (config.instsAllowed != null) {
+            for (LevelConfig.InstConfig instConfig : config.instsAllowed) {
+                instsAllowed.put(instConfig.struct + "_" + instConfig.instId, instConfig.maxUses);
+            }
+        }
+
         stepsLimit = config.stepsLimit;
     }
 
