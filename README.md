@@ -3,13 +3,13 @@ README太短总有傻子跟着念
 
 编译：
 
-./gradlew :game-core:clean :game-core:installDist
+./gradlew :game-logic:clean :game-logic:installDist
 
 运行：
 
 Windows端：
 
-.\game-core\build\install\game-core\bin\game-core.bat
+.\game-logic\build\install\game-logic\bin\game-logic.bat
 
 其他端自己看
 
