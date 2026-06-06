@@ -1,8 +1,8 @@
 package com.algoblock.core;
-import com.algoblock.config.LevelConfig;
 import com.algoblock.context.RuntimeContext;
+import com.algoblock.jsonloader.analysis.LevelConfigLoader;
+import com.algoblock.jsonloader.namerule.LevelConfig;
 import com.algoblock.structure.Abstract;
-import com.algoblock.util.LevelConfigLoader;
 
 import java.util.*;
 
@@ -38,7 +38,7 @@ public class Core {
     }
     public void registerStructures() {// 遍历关卡的结构注册表，加载基础指令
         System.out.println("\n[Debug] === 阶段一: 加载物理结构与挂载基础指令 ===");
-        com.algoblock.config.StructureRegistry registryConfig = com.algoblock.util.StructureRegistryLoader.getRegistry();
+        com.algoblock.jsonloader.namerule.StructureRegistry registryConfig = com.algoblock.jsonloader.analysis.StructureRegistryLoader.getRegistry();
         for (String structId : levelConfig.structUsed) {// 
             String fqcn = registryConfig.getFQCN(structId);
             if (fqcn == null) {
