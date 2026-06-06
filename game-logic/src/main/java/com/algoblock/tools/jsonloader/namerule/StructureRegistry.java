@@ -1,4 +1,4 @@
-package com.algoblock.jsonloader.namerule;
+package com.algoblock.tools.jsonloader.namerule;
 
 import java.util.HashMap;
 import java.util.Map;

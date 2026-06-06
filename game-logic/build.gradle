@@ -28,5 +28,3 @@ dependencies {
 test {
     useJUnitPlatform() // 明确指定使用 JUnit Platform 作为测试运行器，支持 JUnit 5 的所有特性
 }
-
-// 不懂JUnitPlatform用处的傻屌去看docs下的log02.txt的末尾

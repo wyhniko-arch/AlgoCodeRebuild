@@ -9,6 +9,8 @@ import java.util.Set;
 import com.algoblock.logic.Logic;
 import com.algoblock.structure.Abstract;
 
+import com.algoblock.tools.buffer.RowBuffer;
+
 public class RuntimeContext {
     private final Logic core;
     public RuntimeContext(Logic core) { this.core = core; }
@@ -26,14 +28,14 @@ public class RuntimeContext {
     private String generateKey(String struct, String name) { return struct + "_" + name; }
 
     public void putObject(String struct, String name, Abstract obj) {
-        System.out.println("[Debug] [Context] 注册游戏对象: " + struct + " -> " + name);
+        RowBuffer.append("[Debug] [Context] 注册游戏对象: " + struct + " -> " + name);
         objects.put(generateKey(struct, name), obj);
     }
 
     public Abstract getObject(String struct, String name) { return objects.get(generateKey(struct, name)); }
 
     public void removeObject(String struct, String name) { 
-        System.out.println("[Debug] [Context] 抹除游戏对象: " + struct + " -> " + name);
+        RowBuffer.append("[Debug] [Context] 抹除游戏对象: " + struct + " -> " + name);
         objects.remove(generateKey(struct, name)); 
     }
 

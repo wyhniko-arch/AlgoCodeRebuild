@@ -1,6 +1,6 @@
-package com.algoblock.jsonloader.analysis;
+package com.algoblock.tools.jsonloader.analysis;
 
-import com.algoblock.jsonloader.namerule.StructureRegistry;
+import com.algoblock.tools.jsonloader.namerule.StructureRegistry;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import java.io.InputStream;

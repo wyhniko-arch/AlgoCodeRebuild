@@ -5,6 +5,8 @@ import java.util.Map;
 
 import com.algoblock.context.RuntimeContext;
 
+import com.algoblock.tools.buffer.RowBuffer;
+
 public abstract class Abstract {
     public String name;
     
@@ -36,7 +38,7 @@ public abstract class Abstract {
             method.execute(args, context);
         } else {
             // 动态获取子类类名，保留精确日志
-            System.err.println("[拦截] 未能在 " + this.getClass().getSimpleName() + " 中找到并执行指令: " + commandId);
+            RowBuffer.append("[拦截] 未能在 " + this.getClass().getSimpleName() + " 中找到并执行指令: " + commandId);
         }
     }
 
@@ -49,7 +51,7 @@ public abstract class Abstract {
                 return true;
             } catch (Exception e) {
                 // 精确捕捉目标类全限定名(fqcn)，保留排错细节
-                System.err.println("[错误] " + this.getClass().getSimpleName() + " 指令加载失败: " + commandId + "，目标类: " + fqcn);
+                RowBuffer.append("[错误] " + this.getClass().getSimpleName() + " 指令加载失败: " + commandId + "，目标类: " + fqcn);
                 return false;
             }
         }
