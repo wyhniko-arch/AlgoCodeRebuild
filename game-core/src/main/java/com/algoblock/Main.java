@@ -2,7 +2,7 @@ package com.algoblock;
 
 import java.util.Scanner;
 
-import com.algoblock.core.Core;
+import com.algoblock.logic.Logic;
 
 public class Main {
     public static void main(String[] args) {
@@ -18,7 +18,7 @@ public class Main {
 
             try {
                 int levelIndex = Integer.parseInt(input);
-                Core core = new Core();
+                Logic core = new Logic();
                 core.run(levelIndex);
             } catch (NumberFormatException e) {
                 System.out.println("[ERROR] 输入无效，请输入数字。");

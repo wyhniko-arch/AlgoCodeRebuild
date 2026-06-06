@@ -1,4 +1,4 @@
-package com.algoblock.core;
+package com.algoblock.logic;
 import com.algoblock.context.RuntimeContext;
 import com.algoblock.jsonloader.analysis.LevelConfigLoader;
 import com.algoblock.jsonloader.namerule.LevelConfig;
@@ -24,7 +24,7 @@ class TerminalUtils {
     }
 }
 
-public class Core {
+public class Logic {
     private final RuntimeContext runtimeContext = new RuntimeContext(this);//与Core同周期
     private LevelConfig levelConfig;// 关卡与Core同周期
     private final Map<String, CommandDefinition> struct_command_idToCommand = new HashMap<>();// 结构id_指令id快速定位到指令记录

@@ -6,12 +6,12 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
-import com.algoblock.core.Core;
+import com.algoblock.logic.Logic;
 import com.algoblock.structure.Abstract;
 
 public class RuntimeContext {
-    private final Core core;
-    public RuntimeContext(Core core) { this.core = core; }
+    private final Logic core;
+    public RuntimeContext(Logic core) { this.core = core; }
 
     private final Map<String, Abstract> objects = new HashMap<>();
     private final Queue<Integer> buffer = new LinkedList<>();

@@ -1,4 +1,4 @@
-package com.algoblock.core;
+package com.algoblock.logic;
 
 public class CommandDefinition {
     private final String structId;
