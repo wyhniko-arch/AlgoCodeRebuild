@@ -26,11 +26,12 @@ public class Logic {
     // ==========================================
     // 关卡级生命周期字段（start 时初始化，reset 时清空）
     // ==========================================
-    private RuntimeContext runtimeContext = new RuntimeContext(this);//与Core同周期
-    private LevelConfig levelConfig;// 关卡与Core同周期
-    private Map<String, CommandDefinition> struct_command_idToCommand = new HashMap<>();// 结构id_指令id快速定位到指令记录
-    private Map<String, List<CommandDefinition>> struct_idToCommands = new HashMap<>();// 结构id快速定位到指令记录表
-    private Map<String, Abstract> structidToStructure = new HashMap<>();// 结构id快速定位到结构
+    private RuntimeContext runtimeContext = null;
+    private LevelConfig levelConfig = null;
+    private Map<String, Abstract> structidToStructure = null;
+    // 搜索优化，存储引用
+    private Map<String, CommandDefinition> struct_command_idToCommand = null;
+    private Map<String, List<CommandDefinition>> struct_idToCommands = null;
 
     // 关卡内交互状态
     private StringBuilder inputBuffer = new StringBuilder();
@@ -54,6 +55,7 @@ public class Logic {
      *   action:reset                 — 退出当前关卡，清空关卡状态
      *   action:input:<token>         — 关卡内输入（字符 / tab / del / enter / up / down / exit）
      *   query:nextcommandpart        — 关卡内词法分析，返回当前补全候选项
+     *   query:inspect                — 关卡内，查看所有活着游戏对象的当前状态（非数据驱动）
      *
      * 返回值：字符串数组，空数组表示"执行了但无输出"。
      */
@@ -118,6 +120,11 @@ public class Logic {
         // --- query:nextcommandpart ---
         if (command.equalsIgnoreCase("query:nextcommandpart")) {
             return queryNextCommandPart();
+        }
+        
+        // --- query:inspect（关卡内，非数据驱动，查看所有游戏对象当前状态）---
+        if (command.equalsIgnoreCase("query:inspect")) {
+            return runtimeContext.inspectAll(structidToStructure);
         }
  
         return new String[]{"[Error] 未知指令: " + command};
