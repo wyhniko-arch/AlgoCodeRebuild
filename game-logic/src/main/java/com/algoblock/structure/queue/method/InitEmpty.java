@@ -13,7 +13,7 @@ public class InitEmpty implements StructureMethod {
     @Override
     public void execute(String[] args, RuntimeContext context) {
         String objName = args[0];
-        FakeQueue newObj = new FakeQueue();
+        FakeQueue.Instance newObj = new FakeQueue.Instance();
         newObj.name = objName;
         context.putObject(FakeQueue.TYPE_ID, objName, newObj);
     }

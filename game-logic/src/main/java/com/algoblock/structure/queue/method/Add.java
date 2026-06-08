@@ -14,7 +14,7 @@ public class Add implements StructureMethod {
     public void execute(String[] args, RuntimeContext context) {
         // args[0] 对应模板中唯一的一个 @
         String objName = args[0];
-        FakeQueue obj = (FakeQueue) context.getObject(FakeQueue.TYPE_ID, objName);
+        FakeQueue.Instance obj = (FakeQueue.Instance) context.getObject(FakeQueue.TYPE_ID, objName);
         if (obj != null) {
             if (context.getandresetIsPlayerAction()) { //如果是玩家指令则触发连锁
                 context.triggerEngineCommand(context.getBufferCommandOut()); 

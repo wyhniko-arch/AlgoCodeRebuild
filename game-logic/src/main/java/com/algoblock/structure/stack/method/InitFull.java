@@ -14,7 +14,7 @@ public class InitFull implements StructureMethod {
     public void execute(String[] args, RuntimeContext context) {
         String objName = args[0];
         String values = args[1];
-        FakeStack newObj = new FakeStack();
+        FakeStack.Instance newObj = new FakeStack.Instance();
         newObj.name = objName;
         
         if (!values.isEmpty()) {

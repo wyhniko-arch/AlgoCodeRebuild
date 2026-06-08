@@ -14,8 +14,8 @@ public class Equal implements StructureMethod {
     public void execute(String[] args, RuntimeContext context) {
         String nameA = args[0];
         String nameB = args[1];
-        FakeQueue objA = (FakeQueue) context.getObject(FakeQueue.TYPE_ID, nameA);
-        FakeQueue objB = (FakeQueue) context.getObject(FakeQueue.TYPE_ID, nameB);
+        FakeQueue.Instance objA = (FakeQueue.Instance) context.getObject(FakeQueue.TYPE_ID, nameA);
+        FakeQueue.Instance objB = (FakeQueue.Instance) context.getObject(FakeQueue.TYPE_ID, nameB);
         
         // 执行范式6：无论结果如何，必须增加一次判断总数
         context.incrementRunCheck();

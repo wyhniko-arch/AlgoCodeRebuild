@@ -14,9 +14,9 @@ public class Copy implements StructureMethod {
     public void execute(String[] args, RuntimeContext context) {
         String srcName = args[0];
         String destName = args[1];
-        FakeQueue srcObj = (FakeQueue) context.getObject(FakeQueue.TYPE_ID, srcName);
+        FakeQueue.Instance srcObj = (FakeQueue.Instance) context.getObject(FakeQueue.TYPE_ID, srcName);
         if (srcObj != null) {
-            FakeQueue newObj = new FakeQueue();
+            FakeQueue.Instance newObj = new FakeQueue.Instance();
             newObj.name = destName;
             newObj.array = new int[srcObj.array.length];
             System.arraycopy(srcObj.array, 0, newObj.array, 0, srcObj.array.length);

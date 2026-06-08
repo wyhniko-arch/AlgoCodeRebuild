@@ -13,7 +13,7 @@ public class Push implements StructureMethod {
     @Override 
     public void execute(String[] args, RuntimeContext context) {
         String objName = args[0];
-        FakeStack obj = (FakeStack) context.getObject(FakeStack.TYPE_ID, objName);
+        FakeStack.Instance obj = (FakeStack.Instance) context.getObject(FakeStack.TYPE_ID, objName);
         if (obj != null) {
             if (context.getandresetIsPlayerAction()) {
                 context.triggerEngineCommand(context.getBufferCommandOut()); 

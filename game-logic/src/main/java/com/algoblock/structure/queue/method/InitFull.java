@@ -14,7 +14,7 @@ public class InitFull implements StructureMethod {
     public void execute(String[] args, RuntimeContext context) {
         String objName =args[0];
         String values = args[1];
-        FakeQueue newObj = new FakeQueue();
+        FakeQueue.Instance newObj = new FakeQueue.Instance();
         newObj.name = objName;
         
         if (!values.isEmpty()) {

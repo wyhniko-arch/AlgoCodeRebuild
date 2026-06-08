@@ -10,8 +10,8 @@ public class Equal implements StructureMethod {
     @Override public void execute(String[] args, RuntimeContext context) {
         String nameA = args[0];
         String nameB = args[1];
-        FakeStack objA = (FakeStack) context.getObject(FakeStack.TYPE_ID, nameA);
-        FakeStack objB = (FakeStack) context.getObject(FakeStack.TYPE_ID, nameB);
+        FakeStack.Instance objA = (FakeStack.Instance) context.getObject(FakeStack.TYPE_ID, nameA);
+        FakeStack.Instance objB = (FakeStack.Instance) context.getObject(FakeStack.TYPE_ID, nameB);
         context.incrementRunCheck();
         if (objA != null && objB != null && objA.top == objB.top) {
             boolean isEqual = true;

@@ -10,9 +10,9 @@ public class Copy implements StructureMethod {
     @Override public void execute(String[] args, RuntimeContext context) {
         String srcName = args[0];
         String destName = args[1];
-        FakeStack srcObj = (FakeStack) context.getObject(FakeStack.TYPE_ID, srcName);
+        FakeStack.Instance srcObj = (FakeStack.Instance) context.getObject(FakeStack.TYPE_ID, srcName);
         if (srcObj != null) {
-            FakeStack newObj = new FakeStack();
+            FakeStack.Instance newObj = new FakeStack.Instance();
             newObj.name = destName;
             newObj.array = new int[srcObj.array.length];
             System.arraycopy(srcObj.array, 0, newObj.array, 0, srcObj.array.length);

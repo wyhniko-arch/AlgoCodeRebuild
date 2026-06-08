@@ -13,7 +13,7 @@ public class Pop implements StructureMethod {
     @Override
     public void execute(String[] args, RuntimeContext context) {
         String objName = args[0];
-        FakeQueue obj = (FakeQueue) context.getObject(FakeQueue.TYPE_ID, objName);
+        FakeQueue.Instance obj = (FakeQueue.Instance) context.getObject(FakeQueue.TYPE_ID, objName);
         if (obj != null) {
             if (obj.size > 0) {
                 // [可变变量（业务逻辑）]: 出队逻辑，直接修改指针并减小size
