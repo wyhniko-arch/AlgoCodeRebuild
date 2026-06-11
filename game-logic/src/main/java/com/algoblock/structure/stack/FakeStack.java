@@ -8,12 +8,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+
 public class FakeStack extends Abstract {
 
     public static final String TYPE_ID = "Stack";
 
     // ==========================================
-    // Template 角色构造函数
+    // Template 角色构造函数（反射加载，仅跑一次）
     // 仅由 Logic.registerStructures() 调用一次
     // 负责反射加载所有指令，不持有任何游戏数据
     // ==========================================
@@ -32,18 +35,20 @@ public class FakeStack extends Abstract {
      * Template 角色：汇报当前 context 中所有 Stack 游戏对象的状态
      */
     @Override
-    public String[] inspectAll(RuntimeContext context) {
+    public List<JsonObject> collectSnapshots(RuntimeContext context) {
         Set<String> names = context.getActiveObjectNames(TYPE_ID);
-        List<String> result = new ArrayList<>();
+        List<JsonObject> result = new ArrayList<>();
         for (String name : names) {
             Instance obj = (Instance) context.getObject(TYPE_ID, name);
             if (obj != null) {
-                for (String line : obj.inspect()) {
-                    result.add(line);
-                }
+                JsonObject snapshot = new JsonObject();
+                snapshot.addProperty("structId", TYPE_ID);
+                snapshot.addProperty("name", name);
+                snapshot.add("state", obj.inspectAsJson());
+                result.add(snapshot);
             }
         }
-        return result.toArray(new String[0]);
+        return result;
     }
 
     // ==========================================
@@ -77,21 +82,16 @@ public class FakeStack extends Abstract {
          * 返回该 Stack 游戏对象的当前状态（非数据驱动，调试/展示用）
          */
         @Override
-        public String[] inspect() {
-            List<String> lines = new ArrayList<>();
-            lines.add("[Stack] name=" + name + " | top=" + top);
-            if (top < 0) {
-                lines.add("  (空栈)");
-            } else {
-                StringBuilder sb = new StringBuilder("  elements(bottom→top): [");
-                for (int i = 0; i <= top; i++) {
-                    if (i > 0) sb.append(", ");
-                    sb.append(array[i]);
-                }
-                sb.append("]");
-                lines.add(sb.toString());
+        public JsonObject inspectAsJson() {
+            JsonObject state = new JsonObject();
+            state.addProperty("top", top);
+            JsonArray elements = new JsonArray();
+            // bottom -> top 顺序
+            for (int i = 0; i <= top; i++) {
+                elements.add(array[i]);
             }
-            return lines.toArray(new String[0]);
+            state.add("elements", elements);
+            return state;
         }
     }
 }

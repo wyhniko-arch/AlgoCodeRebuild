@@ -13,6 +13,8 @@ import com.algoblock.logic.Logic;
 import com.algoblock.structure.Abstract;
 import com.algoblock.tools.buffer.RowBuffer;
 
+import com.google.gson.JsonObject;
+
 public class RuntimeContext {
     private final Logic core;
     public RuntimeContext(Logic core) { this.core = core; }
@@ -66,27 +68,22 @@ public class RuntimeContext {
     }
 
     // ==========================================
-    // 全局状态 inspect（非数据驱动，调试/展示用）
+    // 全局状态 inspect（非数据驱动，query:object用，用于返回前端需要的结构格式）
     // ==========================================
 
     /**
-     * 遍历当前所有活着的游戏对象，逐一调用其 inspect() 方法，汇总返回。
+     * 遍历templateMap中每个Template，收集所有活着游戏对象的JSON快照，汇总返回。
+     * 每个快照格式：{"structId":"Stack","name":"B","state":{...}}
      * 此方法不依赖关卡配置，不受指令权限控制，纯粹用于调试和展示。
      *
-     * @param templateMap 由 Logic 传入的 structId -> Template 映射，
-     *                    用于找到每个类型对应的 inspectAll 实现。
-     *                    （Template 实例只有 Logic 持有，Context 不持有）
+     * @param templateMap Logic 持有的 structId -> Template 映射
      */
-    public String[] inspectAll(Map<String, Abstract> templateMap) {
-        List<String> result = new ArrayList<>();
-        // 按已注册的 Template 类型逐类汇报
-        for (Map.Entry<String, Abstract> entry : templateMap.entrySet()) {
-            String[] lines = entry.getValue().inspectAll(this);
-            for (String line : lines) {
-                result.add(line);
-            }
+    public List<JsonObject> collectAllSnapshots(Map<String, Abstract> templateMap) {
+        List<JsonObject> result = new ArrayList<>();
+        for (Abstract template: templateMap.values()) {
+            result.addAll(template.collectSnapshots(this));
         }
-        return result.toArray(new String[0]);
+        return result;
     }
 
     // ==========================================

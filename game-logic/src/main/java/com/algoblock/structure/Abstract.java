@@ -6,6 +6,8 @@ import java.util.Map;
 import com.algoblock.context.RuntimeContext;
 import com.algoblock.tools.buffer.RowBuffer;
 
+import com.google.gson.JsonObject;
+
 public abstract class Abstract {
 
     // ==========================================
@@ -61,7 +63,6 @@ public abstract class Abstract {
 
     // ==========================================
     // Instance 角色：数据对象身份标识
-    // 运行期由指令创建的数据对象继承此内部类
     // ==========================================
 
     /**
@@ -73,21 +74,27 @@ public abstract class Abstract {
         public String name;
 
         /**
-         * 返回该游戏对象的当前状态信息（非数据驱动，调试/展示用）。
-         * 每个具体 Instance 子类自行实现，描述自身数据内容。
-         * 格式建议：第一行为对象标识，后续行为具体状态。
+         * 以结构化 JSON 形式返回本对象的当前状态（非数据驱动，调试/展示用）。
+         * 返回的 JsonObject 只包含状态字段本身，例如：
+         * {"top":2,"elements":[1,3,4]}
+         * structId 和 name 由 Template 的 collectSnapshots() 统一包装，不在此处填写
          */
-        public abstract String[] inspect();
+        public abstract JsonObject inspectAsJson();
     }
 
     // ==========================================
-    // Template 角色：对外暴露 inspect 入口
-    // 由 RuntimeContext.inspectAll() 调用，汇报本类型下所有活着的游戏对象状态
+    // Template 角色：收集本类型所有活着的对象的快照
+    // 由 RuntimeContext.collectAllSnapshots() 调用
     // ==========================================
 
     /**
-     * 汇报本结构类型下，当前 context 中所有活着游戏对象的状态。
-     * 子结构的 Template 类（FakeStack、FakeQueue 等）需要重写此方法。
+     * 遍历 context 中属于本结构类型的所有 Instance,
+     * 返回快照列表，每个快照格式：
+     * {
+     *     "structId":"Stack",
+     *     "name":"B",
+     *     "state": { ... } //这里面是 inspectAsJson() 的结果
+     * }
      */
-    public abstract String[] inspectAll(RuntimeContext context);
+    public abstract java.util.List<JsonObject> collectSnapshots(RuntimeContext context);
 }

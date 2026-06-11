@@ -4,13 +4,15 @@ import com.algoblock.context.RuntimeContext;
 import com.algoblock.structure.Abstract;
 import com.algoblock.tools.jsonloader.analysis.LevelConfigLoader;
 import com.algoblock.tools.jsonloader.namerule.LevelConfig;
+import com.google.gson.JsonObject;
 import com.algoblock.tools.buffer.RowBuffer;
+
 import java.util.*;
 
 
 public class Logic {
     // ==========================================
-    // 单例基础设施（参考 RowBuffer）
+    // 单例基础设施
     // ==========================================
     private static volatile Logic instance = null;
     private static Logic getInstance() {
@@ -29,9 +31,8 @@ public class Logic {
     private RuntimeContext runtimeContext = null;
     private LevelConfig levelConfig = null;
     private Map<String, Abstract> structidToStructure = null;
-    // 搜索优化，存储引用
-    private Map<String, CommandDefinition> struct_command_idToCommand = null;
-    private Map<String, List<CommandDefinition>> struct_idToCommands = null;
+    private Map<String, CommandDefinition> struct_command_idToCommand = null;    // 搜索优化，存储引用
+    private Map<String, List<CommandDefinition>> struct_idToCommands = null;    // 搜索优化，存储引用
 
     // 关卡内交互状态
     private StringBuilder inputBuffer = new StringBuilder();
@@ -46,7 +47,7 @@ public class Logic {
     // ==========================================
  
     /**
-     * 状态机统一入口。
+     * 状态机统一入口。所有响应均为单元素 String[]，内容是 JSON 字符串。
      *
      * 指令格式：
      *   query:rowbuffer              — 返回 RowBuffer 全部调试内容（全局可用）
@@ -54,8 +55,9 @@ public class Logic {
      *   action:start:<levelIndex>    — 进入关卡（执行 loadLevel/register/init）
      *   action:reset                 — 退出当前关卡，清空关卡状态
      *   action:input:<token>         — 关卡内输入（字符 / tab / del / enter / up / down / exit）
-     *   query:nextcommandpart        — 关卡内词法分析，返回当前补全候选项
-     *   query:inspect                — 关卡内，查看所有活着游戏对象的当前状态（非数据驱动）
+     *   query:nextcommandpart        — 关卡内词法分析，返回当前补全候选项，包含 selectedIndex
+     *   query:objects                — 关卡内所有活着游戏对象的 JSON 快照
+     *   query:levelinfo              — 关卡全局信息（剩余步数、buffer 指令等，随着更新扩充）
      *
      * 返回值：字符串数组，空数组表示"执行了但无输出"。
      */
@@ -121,14 +123,27 @@ public class Logic {
         if (command.equalsIgnoreCase("query:nextcommandpart")) {
             return queryNextCommandPart();
         }
-        
-        // --- query:inspect（关卡内，非数据驱动，查看所有游戏对象当前状态）---
-        if (command.equalsIgnoreCase("query:inspect")) {
-            return runtimeContext.inspectAll(structidToStructure);
+
+        // --- query:objects ---
+        if (command.equalsIgnoreCase("query:objects")) {
+            List<JsonObject> snapshots = runtimeContext.collectAllSnapshots(structidToStructure);
+            return ResponseBuilder.objects(snapshots);
         }
- 
+
+        // --- query:levelinfo ---
+        if (command.equalsIgnoreCase("query:levelinfo")) {
+            return ResponseBuilder.levelInfo(
+                    currentStep,
+                    levelConfig.stepsLimit,
+                    runtimeContext.getBufferCommandIn(),
+                    runtimeContext.getBufferCommandOut(),
+                    levelConfig.inputDesc,
+                    levelConfig.outputDesc);
+        }
+
         return new String[]{"[Error] 未知指令: " + command};
     }
+    
 
     
     // ==========================================
@@ -136,9 +151,8 @@ public class Logic {
     // ==========================================
  
     private String[] startLevel(int levelIndex) {
-        // 清空上一关卡状态
-        clearLevelState();
- 
+        clearLevelState();  // 清空上一关卡状态
+
         // 初始化关卡级字段
         runtimeContext = new RuntimeContext(this);
         struct_command_idToCommand = new HashMap<>();
@@ -260,13 +274,13 @@ public class Logic {
  
     private String[] queryNextCommandPart() {
         InputAnalysis analysis = computeOptions();
-        // 返回格式：第一行是当前 buffer 内容及状态，后续行是候选项
-        List<String> result = new ArrayList<>();
-        String statusTag = analysis.isExactMatch ? "[EXACT]"
-                : (analysis.isDeadEnd ? "[DEAD]" : "[PARTIAL]");
-        result.add(statusTag + " " + inputBuffer.toString());
-        result.addAll(analysis.optionsList);
-        return result.toArray(new String[0]);
+        String status = analysis.isExactMatch? "exact"
+                : (analysis.isDeadEnd ? "deadend" : "partial");
+        return ResponseBuilder.commandHints(
+                inputBuffer.toString(),
+                status,
+                selectedOptionIndex,
+                analysis.optionsList);
     }
     
     // ==========================================
@@ -327,7 +341,7 @@ public class Logic {
         return result;
     }
     // ==========================================
-    // 原有关卡逻辑（照抄，不改变任何逻辑）
+    // 原有关卡逻辑
     // ==========================================
 
     public void loadLevel(int levelIndex) {// 从外部加载器获取已解析好JSON数据的关卡实例
@@ -523,19 +537,15 @@ public class Logic {
         int inputCursor = 0;
         for (int i = 0; i < literals.length; i++) {
             String lit = literals[i];
-            if (inputCursor >= input.length())
-                return true;
+            if (inputCursor >= input.length()) return true;
 
             if (i == 0) {
-                if (input.length() < lit.length())
-                    return lit.startsWith(input);
-                if (!input.startsWith(lit))
-                    return false;
+                if (input.length() < lit.length()) return lit.startsWith(input);
+                if (!input.startsWith(lit)) return false;
                 inputCursor += lit.length();
             } else {
                 int matchIdx = input.indexOf(lit, inputCursor);
-                if (matchIdx == -1)
-                    return true; // 未遇到结尾闭合点，宽容放行
+                if (matchIdx == -1) return true; // 未遇到结尾闭合点，宽容放行
                 inputCursor = matchIdx + lit.length();
             }
         }
