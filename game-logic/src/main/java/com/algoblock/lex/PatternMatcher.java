@@ -1,4 +1,4 @@
-package com.algoblock.logic;
+package com.algoblock.lex;
 
 import java.util.ArrayList;
 import java.util.List;

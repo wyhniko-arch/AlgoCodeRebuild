@@ -1,4 +1,4 @@
-package com.algoblock.logic;
+package com.algoblock.api;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
