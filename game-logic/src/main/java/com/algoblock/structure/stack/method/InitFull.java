@@ -5,11 +5,12 @@ import com.algoblock.structure.StructureMethod;
 import com.algoblock.structure.stack.FakeStack;
 
 public class InitFull implements StructureMethod {
-    private static final String PATTERN = "Stack(@,(@))";
-    
-    @Override 
-    public String getPattern() { return PATTERN; }
-    
+    private static final String   PATTERN   = "Stack[@,[@]]";
+    private static final String[] ARG_HINTS = {"any", "any"};
+    private static final String[] TAGS      = {};
+    @Override public String getPattern()    { return PATTERN; }
+    @Override public String[] getArgHints() { return ARG_HINTS; }
+    @Override public String[] getTags()     { return TAGS; }
     @Override 
     public void execute(String[] args, RuntimeContext context) {
         String objName = args[0];
@@ -26,6 +27,6 @@ public class InitFull implements StructureMethod {
                 newObj.array[++newObj.top] = Integer.parseInt(v);
             }
         }
-        context.putObject(FakeStack.TYPE_ID, objName, newObj);
+        context.putObject(FakeStack.STRUCTURE_ID, objName, newObj);
     }
 }

@@ -5,16 +5,17 @@ import com.algoblock.structure.StructureMethod;
 import com.algoblock.structure.queue.FakeQueue;
 
 public class Copy implements StructureMethod {
-    private static final String PATTERN = "Queue(@).copy(@)";
-
-    @Override
-    public String getPattern() { return PATTERN; }
-
+    private static final String   PATTERN   = "Queue[@].copy[@]";
+    private static final String[] ARG_HINTS = {"obj[Queue]", "any"};
+    private static final String[] TAGS      = {};
+    @Override public String getPattern()    { return PATTERN; }
+    @Override public String[] getArgHints() { return ARG_HINTS; }
+    @Override public String[] getTags()     { return TAGS; }
     @Override
     public void execute(String[] args, RuntimeContext context) {
         String srcName = args[0];
         String destName = args[1];
-        FakeQueue.Instance srcObj = (FakeQueue.Instance) context.getObject(FakeQueue.TYPE_ID, srcName);
+        FakeQueue.Instance srcObj = (FakeQueue.Instance) context.getObject(FakeQueue.STRUCTURE_ID, srcName);
         if (srcObj != null) {
             FakeQueue.Instance newObj = new FakeQueue.Instance();
             newObj.name = destName;
@@ -23,7 +24,7 @@ public class Copy implements StructureMethod {
             newObj.head = srcObj.head;
             newObj.tail = srcObj.tail;
             newObj.size = srcObj.size;
-            context.putObject(FakeQueue.TYPE_ID, destName, newObj);
+            context.putObject(FakeQueue.STRUCTURE_ID, destName, newObj);
         }
         
     }

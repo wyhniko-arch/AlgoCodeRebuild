@@ -1,6 +1,7 @@
 package com.algoblock.structure;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.algoblock.context.RuntimeContext;
@@ -32,6 +33,13 @@ public abstract class Abstract {
     }
 
     /**
+     * 获取已加载的所有 StructureMethod（供 Logic 注册时读取 argHints / tags）。
+     */
+    public Map<String, StructureMethod> getLoadedMethods() {
+        return loadedMethods;
+    }
+
+    /**
      * 结构端分发器：引擎将提取好的参数传递给结构（Template 角色使用）
      */
     public void executeCommand(String commandId, String[] args, RuntimeContext context) {
@@ -46,23 +54,26 @@ public abstract class Abstract {
     /**
      * 动态加载指令方法（Template 角色使用，仅在注册阶段调用）
      */
+    /** 通过 methodRegistry（FQCN）动态加载。 */
     public boolean ifLoadMethodDynamically(String commandId) {
-        if (!loadedMethods.containsKey(commandId) && methodRegistry.containsKey(commandId)) {
-            String fqcn = methodRegistry.get(commandId);
-            try {
-                StructureMethod methodInstance = (StructureMethod) Class.forName(fqcn).getDeclaredConstructor().newInstance();
-                loadedMethods.put(commandId, methodInstance);
-                return true;
-            } catch (Exception e) {
-                RowBuffer.append("[错误] " + this.getClass().getSimpleName() + " 指令加载失败: " + commandId + "，目标类: " + fqcn);
-                return false;
-            }
+        if (loadedMethods.containsKey(commandId)) return true;
+        String fqcn = methodRegistry.get(commandId);
+        if (fqcn == null) return false;
+        try {
+            StructureMethod m = (StructureMethod) Class.forName(fqcn)
+                    .getDeclaredConstructor().newInstance();
+            loadedMethods.put(commandId, m);
+            return true;
+        } catch (Exception e) {
+            RowBuffer.append("[错误] " + this.getClass().getSimpleName()
+                    + " 指令加载失败: " + commandId + "，目标类: " + fqcn);
+            return false;
         }
-        return loadedMethods.containsKey(commandId);
     }
+ 
 
     // ==========================================
-    // Instance 角色：数据对象身份标识
+    // Instance 基类
     // ==========================================
 
     /**
@@ -96,5 +107,5 @@ public abstract class Abstract {
      *     "state": { ... } //这里面是 inspectAsJson() 的结果
      * }
      */
-    public abstract java.util.List<JsonObject> collectSnapshots(RuntimeContext context);
+    public abstract List<JsonObject> collectSnapshots(RuntimeContext context);
 }

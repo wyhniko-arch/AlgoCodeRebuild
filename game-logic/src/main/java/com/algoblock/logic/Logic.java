@@ -1,18 +1,20 @@
 package com.algoblock.logic;
 
+import java.util.*;
+
 import com.algoblock.context.RuntimeContext;
 import com.algoblock.structure.Abstract;
+import com.algoblock.structure.StructureMethod;
 import com.algoblock.tools.jsonloader.analysis.LevelConfigLoader;
 import com.algoblock.tools.jsonloader.namerule.LevelConfig;
-import com.google.gson.JsonObject;
 import com.algoblock.tools.buffer.RowBuffer;
 
-import java.util.*;
+import com.google.gson.JsonObject;
 
 
 public class Logic {
     // ==========================================
-    // 单例基础设施
+    // 单例
     // ==========================================
     private static volatile Logic instance = null;
     private static Logic getInstance() {
@@ -25,22 +27,31 @@ public class Logic {
         }
         return instance;
     }
+    
+    private Logic() {}
+
     // ==========================================
-    // 关卡级生命周期字段（start 时初始化，reset 时清空）
+    // 关卡级字段（与关卡同生命周期）
     // ==========================================
     private RuntimeContext runtimeContext = null;
     private LevelConfig levelConfig = null;
+    /** structId → Template 实例 */
     private Map<String, Abstract> structidToStructure = null;
+    /** structId_commandId → CommandDefinition（快速定位） */
     private Map<String, CommandDefinition> struct_command_idToCommand = null;    // 搜索优化，存储引用
+    /** structId → CommandDefinition 列表（含 argHints / tags） */
     private Map<String, List<CommandDefinition>> struct_idToCommands = null;    // 搜索优化，存储引用
-
+    /**
+     * 标签 → 该标签下所有有效 CommandDefinition 的集合。
+     * 在 initAllowedLimits 结束后构建，供 ArgHintResolver 的 cmd[tag] 使用。
+     * 注意：这是一个"视图索引"——不持有独立副本，指向同一批 CommandDefinition 对象。
+     */
+    private Map<String, List<CommandDefinition>> commandsByTag = null;
     // 关卡内交互状态
     private StringBuilder inputBuffer = new StringBuilder();
     private int selectedOptionIndex = 0;
     private int currentStep = 0;
     private boolean inLevel = false;
- 
-    private Logic() {}
 
     // ==========================================
     // 唯一对外公开的方法
@@ -166,6 +177,7 @@ public class Logic {
         loadLevel(levelIndex);
         registerStructures();
         initAllowedLimits();
+        buildCommandsByTag();
         executeInitCommands();
  
         RowBuffer.append("\n--- 进入关卡主循环 (关卡 " + levelIndex + ") ---");
@@ -200,7 +212,7 @@ public class Logic {
         // exit 相当于原来 run() 循环里的 break
         if ("exit".equalsIgnoreCase(action)) {
             resetLevel();
-            return new String[]{"[OK] 已退出关卡"};
+            return ResponseBuilder.ack("[OK] 已退出关卡");
         }
  
         if ("enter".equalsIgnoreCase(action)) {
@@ -211,32 +223,31 @@ public class Logic {
             RowBuffer.append("玩家提交语句: " + statement);
             runtimeContext.resetCheckCounts();
             boolean executed = executeStatement(statement, true);
-            if (!executed) {
-                return new String[0];
-            }
+            if (!executed) return new String[0];
             executeJudgeCommands();
             runtimeContext.clearBuffer();
  
             if (runtimeContext.isWinConditionMet()) {
                 RowBuffer.append("[过关] 判定条件通过！游戏胜利！");
                 inLevel = false;
-                return new String[]{"[WIN] 过关！"};
+                return ResponseBuilder.win();
             }
  
             currentStep++;
             if (currentStep >= levelConfig.stepsLimit) {
                 RowBuffer.append("[结算] 达到最大步数限制，游戏结束。");
                 inLevel = false;
-                return new String[]{"[FAIL] 达到最大步数限制，游戏结束"};
+                return ResponseBuilder.fail("[FAIL] 达到最大步数限制，游戏结束");
             }
  
             RowBuffer.append("[循环] 判定未通过，继续循环。剩余步数: " + (levelConfig.stepsLimit - currentStep));
-            return new String[0];
+            return ResponseBuilder.levelContinue(currentStep, levelConfig.stepsLimit);
  
         } else if ("tab".equalsIgnoreCase(action)) {
             List<String> options = computeOptions().optionsList;
             if (!options.isEmpty()) {
                 int idx = (options.size() == 1) ? 0 : selectedOptionIndex;
+                idx = Math.min(idx, options.size() - 1); //emmmm
                 inputBuffer.append(options.get(idx));
                 selectedOptionIndex = 0;
             }
@@ -250,13 +261,13 @@ public class Logic {
             return new String[0];
  
         } else if ("up".equalsIgnoreCase(action)) {
-            List<String> options = computeOptions().optionsList;
             selectedOptionIndex = Math.max(0, selectedOptionIndex - 1);
             return new String[0];
  
         } else if ("down".equalsIgnoreCase(action)) {
-            List<String> options = computeOptions().optionsList;
-            selectedOptionIndex = Math.min(options.size() - 1, selectedOptionIndex + 1);
+            InputAnalysis analysis = computeOptions();
+            selectedOptionIndex = Math.min(
+                Math.max(0, analysis.optionsList.size() - 1), selectedOptionIndex + 1);
             return new String[0];
  
         } else if (action.length() == 1) {
@@ -265,7 +276,7 @@ public class Logic {
             return new String[0];
         }
  
-        return new String[]{"[Error] 无法识别的 input token: " + action};
+        return ResponseBuilder.error("[Error] 无法识别的 input token: " + action);
     }
 
     // ==========================================
@@ -284,56 +295,50 @@ public class Logic {
     }
     
     // ==========================================
-    // 词法分析核心（原 interactiveReadCommand 拆出）
+    // 词法分析核心（原 interactiveReadCommand 拆出，再次重构）
     // ==========================================
  
-    private static class InputAnalysis {
-        boolean isExactMatch;
-        boolean isDeadEnd;
-        List<String> optionsList;
+     private static class InputAnalysis {
+        boolean      isExactMatch = false;
+        boolean      isDeadEnd   = true;
+        List<String> optionsList  = new ArrayList<>();
     }
- 
+    /**
+     * 计算当前输入缓冲下的词法补全。
+     *
+     * 算法：对所有玩家有配额的指令运行 PatternMatcher 推进，收集"下一步可追加片段"——
+     *   - 字面量片段：直接加入选项
+     *   - 参数 hint 片段：交给 ArgHintResolver.resolveCompletion 按 hint 类型分发
+     *     （obj / cmd / any / 将来的扩展），统一返回带括号闭合的补全后缀
+     *
+     * 该方法只负责"最外层"的推进；cmd[] 内部的递归在 ArgHintResolver 内部完成。
+     * 因此最外层的配额过滤、isExactMatch / isDeadEnd 判定都集中在这里。
+     */
     private InputAnalysis computeOptions() {
         InputAnalysis result = new InputAnalysis();
-        result.isExactMatch = false;
-        result.isDeadEnd = true;
         Set<String> uniqueOptions = new LinkedHashSet<>();
         String current = inputBuffer.toString();
  
-        for (Map.Entry<String, List<CommandDefinition>> entry : struct_idToCommands.entrySet()) {
-            String structId = entry.getKey();
-            Set<String> activeVars = runtimeContext.getActiveObjectNames(structId);
+        for (List<CommandDefinition> defs : struct_idToCommands.values()) {
+            for (CommandDefinition def : defs) {
+                // 最外层：仅考虑玩家有配额的指令
+                if (def.getMaxUses() <= 0 || def.getUsedCount() >= def.getMaxUses()) continue;
  
-            for (CommandDefinition def : entry.getValue()) {
-                if (def.getMaxUses() > 0 && def.getUsedCount() < def.getMaxUses()) {
- 
-                    if (!result.isExactMatch && extractArgumentsFast(def, current) != null) {
-                        result.isExactMatch = true;
-                        result.isDeadEnd = false;
-                    }
- 
-                    if (result.isDeadEnd && couldBePrefix(def.getPattern(), current)) {
-                        result.isDeadEnd = false;
-                    }
- 
-                    List<List<String>> tokenSequences = new ArrayList<>();
-                    generateTokensRecursive(def.getLiterals(), 0, new ArrayList<>(), activeVars, tokenSequences);
-                    for (List<String> seq : tokenSequences) {
-                        String fullStr = String.join("", seq);
-                        if (fullStr.startsWith(current) && !fullStr.equals(current)) {
-                            int currentLen = 0;
-                            for (String token : seq) {
-                                int start = currentLen;
-                                int end = currentLen + token.length();
-                                if (current.length() >= start && current.length() < end) {
-                                    uniqueOptions.add(token.substring(current.length() - start));
-                                    break;
-                                }
-                                currentLen += token.length();
-                            }
-                        }
-                    }
+                // 精确匹配（用于 status=exact 提示）
+                if (!result.isExactMatch && PatternMatcher.extractArgs(def, current) != null) {
+                    result.isExactMatch = true;
+                    result.isDeadEnd    = false;
                 }
+ 
+                // 收集该 def 在 current 下的补全后缀（最外层 → checkQuota=true）
+                List<String> suffixes = ArgHintResolver.completionsForDef(
+                        def, current, true, runtimeContext, struct_idToCommands);
+                if (!suffixes.isEmpty()) result.isDeadEnd = false;
+                uniqueOptions.addAll(suffixes);
+ 
+                // 即使 suffixes 为空，只要 couldBePrefix 通过，也不算 dead end
+                if (result.isDeadEnd && PatternMatcher.couldBePrefix(def, current))
+                    result.isDeadEnd = false;
             }
         }
  
@@ -341,7 +346,7 @@ public class Logic {
         return result;
     }
     // ==========================================
-    // 原有关卡逻辑
+    // 原有关卡逻辑，在重构完词法分析后逻辑不变
     // ==========================================
 
     public void loadLevel(int levelIndex) {// 从外部加载器获取已解析好JSON数据的关卡实例
@@ -363,13 +368,20 @@ public class Logic {
                 Abstract structInstance = (Abstract) Class.forName(fqcn).getDeclaredConstructor().newInstance(); // 新建结构实例
                 structidToStructure.put(structId, structInstance); //结构实例的引用打入结构id-实例引用映射
                 struct_idToCommands.put(structId, new ArrayList<>()); //初始化结构id-指令记录表引用映射
-                for (Map.Entry<String, String> entry : structInstance.getPatterns().entrySet()) { // 遍历该实例默认指令记录表
-                    CommandDefinition newDef = new CommandDefinition(structId, entry.getKey(), entry.getValue()); // 新建指令记录
+                
+                // 遍历该实例默认指令记录表，即已加载的方法，用 argHints / tags 构建 CommandDefinition
+                for (Map.Entry<String, StructureMethod> entry : structInstance.getLoadedMethods().entrySet()) {
+                    CommandDefinition newDef = new CommandDefinition( // 新建指令记录
+                            structId,
+                            entry.getKey(), //commandId
+                            entry.getValue().getPattern(),
+                            entry.getValue().getArgHints(),
+                            entry.getValue().getTags());
                     newDef.setMaxUses(0); // 默认玩家无使用次数
                     struct_command_idToCommand.put(structId + "_" + entry.getKey(), newDef); // 将指令记录的引用打入双id-指令记录引用映射
                     struct_idToCommands.get(structId).add(newDef); // 将指令记录的引用加入id-指令记录表引用中
                     RowBuffer.append("[Debug] -> [" + structId + "] 成功挂载预设指令: " + entry.getKey() + " | Pattern: "
-                            + entry.getValue());
+                            + entry.getValue().getPattern());
                 }
             } catch (Exception e) {
                 RowBuffer.append("[Debug] [异常] 结构体注册严重失败: " + fqcn);
@@ -393,20 +405,41 @@ public class Logic {
                     boolean loaded = structTemplate.ifLoadMethodDynamically(commandAllowed.commandId); //是否成功动态加载
                     RowBuffer.append("[Debug]   |- 底层架构反馈加载结果: " + loaded);
                     if (loaded) {
-                        String pattern = structTemplate.getPatterns().get(commandAllowed.commandId);
-                        CommandDefinition newDef = new CommandDefinition(commandAllowed.structId, commandAllowed.commandId, pattern); // 新建指令记录
+                        // 从动态加载后的 StructureMethod 实例拿完整的 pattern / argHints / tags
+                        StructureMethod sm = structTemplate.getLoadedMethods().get(commandAllowed.commandId);
+                        CommandDefinition newDef = new CommandDefinition(
+                                commandAllowed.structId,
+                                commandAllowed.commandId,
+                                sm.getPattern(),
+                                sm.getArgHints(),
+                                sm.getTags());
                         newDef.setMaxUses(commandAllowed.maxUses); // 使用次数设为设置值
                         struct_command_idToCommand.put(struct_command_id, newDef); // 将指令记录的引用打入双id-指令记录引用映射
                         if (!struct_idToCommands.containsKey(commandAllowed.structId)) { //不包含当前指令记录的结构id，则需要先初始化防崩
                             struct_idToCommands.put(commandAllowed.structId, new ArrayList<>());
                         }
                         struct_idToCommands.get(commandAllowed.structId).add(newDef); // 将指令记录的引用加入id-指令记录表引用中
-                        RowBuffer.append("[Debug]   |- [完毕] 指令已动态组装加入引擎库. Pattern: " + pattern);
+                        RowBuffer.append("[Debug]   |- [完毕] 指令已动态组装加入引擎库. Pattern: " + sm.getPattern());
                     }
                 }
             }
         }
     }
+
+    /** 在 initAllowedLimits 之后调用，建立 tag → CommandDefinition 列表的索引。 */
+    private void buildCommandsByTag() {
+        commandsByTag = new HashMap<>();
+        for (List<CommandDefinition> defs : struct_idToCommands.values()) {
+            for (CommandDefinition def : defs) {
+                if (def.getMaxUses() <= 0) continue; // 无权限的不加入索引
+                for (String tag : def.getTags()) {
+                    commandsByTag.computeIfAbsent(tag, k -> new ArrayList<>()).add(def);
+                }
+            }
+        }
+        RowBuffer.append("[Debug] commandsByTag 构建完成，标签数: " + commandsByTag.size());
+    }
+ 
     public void executeInitCommands() {
         RowBuffer.append("\n--- 初始化阶段 ---");
         for (String initCommand : levelConfig.initCommands) { // 遍历初始化指令逐一执行
@@ -423,263 +456,80 @@ public class Logic {
      * [致命 Bug 修订]: 全字符穷举判定
      * 解决了截断匹配导致 Queue(A).pop 误命中了 Queue(@) 的问题。
      */
-    private String[] extractArgumentsFast(CommandDefinition def, String statement) {
-        String[] literals = def.getLiterals();
-        List<String> args = new ArrayList<>(literals.length - 1);
-        int cursor = 0;
-
-        for (int i = 0; i < literals.length; i++) {
-            String lit = literals[i];
-            if (i == 0) {
-                if (!statement.startsWith(lit))
-                    return null;
-                cursor = lit.length();
-            } else {
-                if (lit.isEmpty()) {
-                    // 处理末尾直接是 @ 的情况 (例如 Pattern = "@")
-                    args.add(statement.substring(cursor));
-                    cursor = statement.length();
-                } else {
-                    int matchIdx = statement.indexOf(lit, cursor);
-                    if (matchIdx == -1)
-                        return null;
-                    args.add(statement.substring(cursor, matchIdx));
-                    cursor = matchIdx + lit.length();
-                }
-            }
-        }
-        // 【核心校验】：确保模式在游标走完时，语句也严丝合缝地被穷尽
-        if (cursor != statement.length()) return null;
-        return args.toArray(new String[0]);
-    }
-    private String extractStructId(String statement) {
-        int firstParen = statement.indexOf('(');
-        int firstDot = statement.indexOf('.');
-        if (firstParen != -1 && firstDot != -1)
-            return statement.substring(0, Math.min(firstParen, firstDot));
-        else if (firstParen != -1)
-            return statement.substring(0, firstParen);
-        else if (firstDot != -1)
-            return statement.substring(0, firstDot);
+    // ==========================================
+    // Update: 语句执行，但是改用 PatternMatcher
+    // ==========================================
+        private String extractStructId(String statement) {
+        int p = statement.indexOf('[');
+        int d = statement.indexOf('.');
+        if (p != -1 && d != -1) return statement.substring(0, Math.min(p, d));
+        if (p != -1) return statement.substring(0, p);
+        if (d != -1) return statement.substring(0, d);
         return statement;
-    }
-    public boolean executeStatement(String statement, boolean isPlayerAction) {
-        RowBuffer.append("[Debug] >>> 引擎开始路由分析语句: " + statement + " | 执行主体: " + (isPlayerAction ? "玩家" : "系统"));
+    }    public boolean executeStatement(String statement, boolean isPlayerAction) {
+        RowBuffer.append("[Debug] >>> 路由语句: " + statement
+                + " | 主体: " + (isPlayerAction ? "玩家" : "系统"));
         String structId = extractStructId(statement);
-        RowBuffer.append("[Debug] -> O(1) 预检定位到的主结构体 ID 为: " + structId);
+        RowBuffer.append("[Debug] -> 定位结构体: " + structId);
+ 
         List<CommandDefinition> defs = struct_idToCommands.get(structId);
         if (defs == null) {
-            RowBuffer.append("[Debug] -> [拦截] 未找到结构体 [" + structId + "] 的相关指令库");
+            RowBuffer.append("[Debug] -> [拦截] 未找到结构体 [" + structId + "] 的指令库");
             return false;
         }
+ 
         for (CommandDefinition def : defs) {
-            // [玩家权限校验 Bug 修复]：执行者是玩家时，若配额不足或为零（系统指令），直接将此模式剔除出匹配范围
             if (isPlayerAction) {
-                if (def.getMaxUses() <= 0)
-                    continue;
-                if (def.getUsedCount() >= def.getMaxUses())
-                    continue;
+                if (def.getMaxUses() <= 0 || def.getUsedCount() >= def.getMaxUses()) continue;
             }
-            String[] args = extractArgumentsFast(def, statement);
+            String[] args = PatternMatcher.extractArgs(def, statement);
             if (args != null) {
-                RowBuffer.append("[Debug] -> [匹配成功] 成功锁定指令!");
-                RowBuffer.append("[Debug]    |- 结构 ID: " + def.getStructId());
-                RowBuffer.append("[Debug]    |- 指令 ID: " + def.getCommandId());
-                RowBuffer.append("[Debug]    |- Pattern: " + def.getPattern());
-                RowBuffer.append("[Debug]    |- 提取参数: " + Arrays.toString(args));
-
+                // cmd[] 语义校验：验证参数内容是否真的匹配约束的指令格式
+                if (!validateCmdArgs(def, args)) continue;
+ 
+                RowBuffer.append("[Debug] -> [匹配] " + def.getCommandId()
+                        + " args=" + Arrays.toString(args));
                 if (isPlayerAction) {
                     def.incrementUsedCount();
-                    RowBuffer.append("[Debug]    |- 玩家已用次数更新: " + def.getUsedCount() + " / " + def.getMaxUses());
+                    RowBuffer.append("[Debug]    |- 已用: "
+                            + def.getUsedCount() + "/" + def.getMaxUses());
                 }
-
-                Abstract template = structidToStructure.get(def.getStructId());
-                RowBuffer.append("[Debug] -> 即将向子结构 [" + def.getStructId() + "] 抛出 executeCommand 调度");
-                runtimeContext.setIsPlayerAction(isPlayerAction); // 设置当前执行上下文的玩家指令标志
-                template.executeCommand(def.getCommandId(), args, runtimeContext); // 结构端分发器：引擎将提取好的参数传递给结构
-                runtimeContext.setIsPlayerAction(false); // 重置玩家指令标志，防止连锁误触
+                runtimeContext.setIsPlayerAction(isPlayerAction);
+                structidToStructure.get(def.getStructId())
+                        .executeCommand(def.getCommandId(), args, runtimeContext);
+                runtimeContext.setIsPlayerAction(false);
                 return true;
             }
         }
-
-        RowBuffer.append("[Debug] -> [匹配失败] 该语句与所有合法的模式均不匹配");
+        RowBuffer.append("[Debug] -> [失败] 无匹配 pattern");
         return false;
     }
-
-    public void triggerEngineCommand(String statement) {
-        RowBuffer.append("[Debug] *** 引擎触发后台隐式命令 ***");
-        executeStatement(statement, false);
-    }
-
-    // ==========================================
-    // 玩家词法交互与渲染引擎模块
-    // ==========================================
-
-    private void generateTokensRecursive(String[] literals, int varIdx, List<String> currentTokens,
-            Set<String> activeVars, List<List<String>> result) {
-        List<String> nextTokens = new ArrayList<>(currentTokens);
-        if (!literals[varIdx].isEmpty())
-            nextTokens.add(literals[varIdx]);
-
-        if (varIdx == literals.length - 1) {
-            result.add(nextTokens);
-            return;
-        }
-        for (String var : activeVars) {
-            List<String> pathWithVar = new ArrayList<>(nextTokens);
-            pathWithVar.add(var);
-            generateTokensRecursive(literals, varIdx + 1, pathWithVar, activeVars, result);
-        }
-    }
-
-    private boolean couldBePrefix(String pattern, String input) {
-        String[] literals = pattern.split("@", -1);
-        int inputCursor = 0;
-        for (int i = 0; i < literals.length; i++) {
-            String lit = literals[i];
-            if (inputCursor >= input.length()) return true;
-
-            if (i == 0) {
-                if (input.length() < lit.length()) return lit.startsWith(input);
-                if (!input.startsWith(lit)) return false;
-                inputCursor += lit.length();
-            } else {
-                int matchIdx = input.indexOf(lit, inputCursor);
-                if (matchIdx == -1) return true; // 未遇到结尾闭合点，宽容放行
-                inputCursor = matchIdx + lit.length();
+ 
+    /**
+     * 对提取出的 args 做 cmd[] 语义验证。
+     * 遍历每个参数，若对应的 argHint 是 cmd[] 类型，
+     * 则验证该参数字符串能匹配至少一条筛选出的 CommandDefinition。
+     */
+    /**
+     * 对提取出的 args 逐个做语义校验。
+     * 每个参数走 ArgHintResolver.validateArg —— 内部按 hint 类型分发到对应 spec。
+     * any 永远通过、obj 检查存活、cmd 检查能匹配某条 def。
+     */
+    private boolean validateCmdArgs(CommandDefinition def, String[] args) {
+        String[] argHints = def.getArgHints();
+        for (int i = 0; i < args.length; i++) {
+            String hint = (i < argHints.length) ? argHints[i] : "any";
+            if (!ArgHintResolver.validateArg(hint, args[i], runtimeContext, struct_idToCommands)) {
+                RowBuffer.append("[Debug]    |- [语义拒绝] 参数 " + i + " \"" + args[i]
+                        + "\" 不符合约束: " + hint);
+                return false;
             }
         }
         return true;
     }
-    /*
-    private String interactiveReadCommand(Scanner scanner) {
-        StringBuilder buffer = new StringBuilder();
-        int selectedOptionIndex = 0;
 
-        while (true) {
-            boolean isExactMatch = false;
-            boolean isDeadEnd = true;
-            Set<String> uniqueOptions = new LinkedHashSet<>();
-
-            for (Map.Entry<String, List<CommandDefinition>> entry : struct_idToCommands.entrySet()) {
-                String structId = entry.getKey();
-                // [结构命名空间隔离]：此时 @ 严格与该特定结构的对象群绑定
-                Set<String> activeVars = runtimeContext.getActiveObjectNames(structId);
-
-                for (CommandDefinition def : entry.getValue()) {
-                    // 预测范围过滤：玩家无法使用的指令不得提供 UI 补全联想
-                    if (def.getMaxUses() > 0 && def.getUsedCount() < def.getMaxUses()) {
-
-                        if (!isExactMatch && extractArgumentsFast(def, buffer.toString()) != null) {
-                            isExactMatch = true;
-                            isDeadEnd = false;
-                        }
-
-                        if (isDeadEnd && couldBePrefix(def.getPattern(), buffer.toString())) {
-                            isDeadEnd = false;
-                        }
-
-                        List<List<String>> tokenSequences = new ArrayList<>();
-                        generateTokensRecursive(def.getLiterals(), 0, new ArrayList<>(), activeVars, tokenSequences);
-                        for (List<String> seq : tokenSequences) {
-                            String fullStr = String.join("", seq);
-                            if (fullStr.startsWith(buffer.toString()) && !fullStr.equals(buffer.toString())) {
-                                int currentLen = 0;
-                                for (String token : seq) {
-                                    int start = currentLen;
-                                    int end = currentLen + token.length();
-                                    if (buffer.length() >= start && buffer.length() < end) {
-                                        uniqueOptions.add(token.substring(buffer.length() - start));
-                                        break;
-                                    }
-                                    currentLen += token.length();
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            List<String> optionsList = new ArrayList<>(uniqueOptions);
-            String inputColor = isExactMatch ? TerminalUtils.GREEN
-                    : (isDeadEnd ? TerminalUtils.RED : TerminalUtils.WHITE);
-
-            TerminalUtils.clearCurrentLine();
-            System.out.print("\r\033[0J");
-            System.out.print("> " + inputColor + buffer.toString() + TerminalUtils.RESET);
-
-            if (!isExactMatch && !optionsList.isEmpty()) {
-                if (optionsList.size() == 1) {
-                    System.out.print(TerminalUtils.GOLD + optionsList.get(0) + TerminalUtils.RESET);
-                } else {
-                    System.out.println();
-                    for (int i = 0; i < optionsList.size(); i++) {
-                        if (i == selectedOptionIndex) {
-                            System.out
-                                    .println(TerminalUtils.GOLD + "[" + optionsList.get(i) + "]" + TerminalUtils.RESET);
-                        } else {
-                            System.out.println(TerminalUtils.GRAY + optionsList.get(i) + TerminalUtils.RESET);
-                        }
-                    }
-                    TerminalUtils.clearBelowAndRenderUp(optionsList.size(), 2 + buffer.length());
-                }
-            }
-
-            String action = scanner.nextLine().trim();
-
-            if ("enter".equalsIgnoreCase(action)) {
-                System.out.println();
-                return buffer.toString();
-            } else if ("tab".equalsIgnoreCase(action)) {
-                if (!optionsList.isEmpty()) {
-                    int idx = (optionsList.size() == 1) ? 0 : selectedOptionIndex;
-                    buffer.append(optionsList.get(idx));
-                    selectedOptionIndex = 0;
-                }
-            } else if ("del".equalsIgnoreCase(action)) {
-                if (buffer.length() > 0)
-                    buffer.deleteCharAt(buffer.length() - 1);
-                selectedOptionIndex = 0;
-            } else if ("up".equalsIgnoreCase(action)) {
-                selectedOptionIndex = Math.max(0, selectedOptionIndex - 1);
-            } else if ("down".equalsIgnoreCase(action)) {
-                selectedOptionIndex = Math.min(optionsList.size() - 1, selectedOptionIndex + 1);
-            } else if (action.length() == 1) {
-                buffer.append(action);
-                selectedOptionIndex = 0;
-            }
-        }
-    }*/
-    /*
-    public void run(int levelIndex) {
-        loadLevel(levelIndex);
-        registerStructures();
-        initAllowedLimits();
-        executeInitCommands();
-        RowBuffer.append("\n--- 进入关卡主循环 ---");
-        Scanner scanner = new Scanner(System.in);
-        int currentStep = 0;
-        while (currentStep < levelConfig.stepsLimit) {
-            runtimeContext.resetCheckCounts();
-            RowBuffer.append("等待一个语句输入 (请输入单字符，或控制命令 [tab, del, enter, up, down]):");
-            String input = interactiveReadCommand(scanner);
-            if ("exit".equalsIgnoreCase(input.trim())) break;
-            RowBuffer.append("检查该语句是否可执行");
-            boolean executed = executeStatement(input, true);
-        if (!executed) continue;
-            executeJudgeCommands();
-            runtimeContext.clearBuffer();
-            if (runtimeContext.isWinConditionMet()) {
-                RowBuffer.append("[过关] 判定条件通过！游戏胜利！");
-                break;
-            } else {
-                RowBuffer.append("[循环] 判定未通过，继续循环。剩余步数: " + (levelConfig.stepsLimit - currentStep - 1));
-            }
-            currentStep++;
-        }
-        if (currentStep >= levelConfig.stepsLimit && !runtimeContext.isWinConditionMet()) {
-            RowBuffer.append("[结算] 达到最大步数限制，游戏结束。");
-        }
-        scanner.close();
-    } */
+    public void triggerEngineCommand(String statement) {
+        RowBuffer.append("[Debug] *** 引擎触发后台隐式命令：" + statement);
+        executeStatement(statement, false);
+    }
 }

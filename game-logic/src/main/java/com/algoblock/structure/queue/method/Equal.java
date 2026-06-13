@@ -5,17 +5,18 @@ import com.algoblock.structure.StructureMethod;
 import com.algoblock.structure.queue.FakeQueue;
 
 public class Equal implements StructureMethod {
-    private static final String PATTERN = "Queue.equal(@,@)";
-
-    @Override
-    public String getPattern() { return PATTERN; }
-
+    private static final String   PATTERN   = "Queue.equal[@,@]";
+    private static final String[] ARG_HINTS = {"obj[Queue]", "obj[Queue]"};
+    private static final String[] TAGS      = {};
+    @Override public String getPattern()    { return PATTERN; }
+    @Override public String[] getArgHints() { return ARG_HINTS; }
+    @Override public String[] getTags()     { return TAGS; }
     @Override
     public void execute(String[] args, RuntimeContext context) {
         String nameA = args[0];
         String nameB = args[1];
-        FakeQueue.Instance objA = (FakeQueue.Instance) context.getObject(FakeQueue.TYPE_ID, nameA);
-        FakeQueue.Instance objB = (FakeQueue.Instance) context.getObject(FakeQueue.TYPE_ID, nameB);
+        FakeQueue.Instance objA = (FakeQueue.Instance) context.getObject(FakeQueue.STRUCTURE_ID, nameA);
+        FakeQueue.Instance objB = (FakeQueue.Instance) context.getObject(FakeQueue.STRUCTURE_ID, nameB);
         
         // 执行范式6：无论结果如何，必须增加一次判断总数
         context.incrementRunCheck();

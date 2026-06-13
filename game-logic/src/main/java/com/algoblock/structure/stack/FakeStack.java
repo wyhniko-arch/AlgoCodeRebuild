@@ -13,7 +13,7 @@ import com.google.gson.JsonObject;
 
 public class FakeStack extends Abstract {
 
-    public static final String TYPE_ID = "Stack";
+    public static final String STRUCTURE_ID = "Stack";
 
     // ==========================================
     // Template 角色构造函数（反射加载，仅跑一次）
@@ -22,7 +22,7 @@ public class FakeStack extends Abstract {
     // ==========================================
     public FakeStack() {
         super();
-        this.methodRegistry.putAll(MethodRegistryLoader.load(TYPE_ID));
+        this.methodRegistry.putAll(MethodRegistryLoader.load(STRUCTURE_ID));
 
         ifLoadMethodDynamically("init_full");
         ifLoadMethodDynamically("init_empty");
@@ -36,13 +36,13 @@ public class FakeStack extends Abstract {
      */
     @Override
     public List<JsonObject> collectSnapshots(RuntimeContext context) {
-        Set<String> names = context.getActiveObjectNames(TYPE_ID);
+        Set<String> names = context.getActiveObjectNames(STRUCTURE_ID);
         List<JsonObject> result = new ArrayList<>();
         for (String name : names) {
-            Instance obj = (Instance) context.getObject(TYPE_ID, name);
+            Instance obj = (Instance) context.getObject(STRUCTURE_ID, name);
             if (obj != null) {
                 JsonObject snapshot = new JsonObject();
-                snapshot.addProperty("structId", TYPE_ID);
+                snapshot.addProperty("structId", STRUCTURE_ID);
                 snapshot.addProperty("name", name);
                 snapshot.add("state", obj.inspectAsJson());
                 result.add(snapshot);

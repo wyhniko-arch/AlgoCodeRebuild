@@ -5,13 +5,18 @@ import com.algoblock.structure.StructureMethod;
 import com.algoblock.structure.stack.FakeStack;
 
 public class Equal implements StructureMethod {
-    private static final String PATTERN = "Stack.equal(@,@)";
-    @Override public String getPattern() { return PATTERN; }
-    @Override public void execute(String[] args, RuntimeContext context) {
+    private static final String   PATTERN   = "Stack.equal[@,@]";
+    private static final String[] ARG_HINTS = {"obj[Stack]", "obj[Stack]"};
+    private static final String[] TAGS      = {};
+    @Override public String getPattern()    { return PATTERN; }
+    @Override public String[] getArgHints() { return ARG_HINTS; }
+    @Override public String[] getTags()     { return TAGS; }
+    @Override
+    public void execute(String[] args, RuntimeContext context) {
         String nameA = args[0];
         String nameB = args[1];
-        FakeStack.Instance objA = (FakeStack.Instance) context.getObject(FakeStack.TYPE_ID, nameA);
-        FakeStack.Instance objB = (FakeStack.Instance) context.getObject(FakeStack.TYPE_ID, nameB);
+        FakeStack.Instance objA = (FakeStack.Instance) context.getObject(FakeStack.STRUCTURE_ID, nameA);
+        FakeStack.Instance objB = (FakeStack.Instance) context.getObject(FakeStack.STRUCTURE_ID, nameB);
         context.incrementRunCheck();
         if (objA != null && objB != null && objA.top == objB.top) {
             boolean isEqual = true;
