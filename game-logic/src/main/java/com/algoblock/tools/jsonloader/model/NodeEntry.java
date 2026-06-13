@@ -1,4 +1,4 @@
-package com.algoblock.tools.jsonloader.namerule;
+package com.algoblock.tools.jsonloader.model;
 
 import java.util.List;
 

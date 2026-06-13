@@ -1,9 +1,9 @@
 package com.algoblock.logic;
 
 import com.algoblock.context.RuntimeContext;
-import com.algoblock.lex.CommandDefinition;
+import com.algoblock.lang.CommandDefinition;
 import com.algoblock.structure.Abstract;
-import com.algoblock.tools.jsonloader.namerule.LevelConfig;
+import com.algoblock.tools.jsonloader.model.LevelConfig;
 
 import java.util.HashMap;
 import java.util.List;

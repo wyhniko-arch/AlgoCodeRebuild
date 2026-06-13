@@ -1,8 +1,8 @@
 package com.algoblock.logic;
 
-import com.algoblock.api.ResponseBuilder;
-import com.algoblock.lex.Lexer;
-import com.algoblock.lex.StatementExecutor;
+import com.algoblock.lang.Lexer;
+import com.algoblock.lang.StatementExecutor;
+import com.algoblock.protocol.ResponseBuilder;
 import com.algoblock.tools.buffer.RowBuffer;
 
 import java.util.List;

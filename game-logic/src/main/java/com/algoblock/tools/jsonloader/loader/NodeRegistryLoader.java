@@ -1,7 +1,7 @@
-package com.algoblock.tools.jsonloader.analysis;
+package com.algoblock.tools.jsonloader.loader;
 
 import com.algoblock.tools.buffer.RowBuffer;
-import com.algoblock.tools.jsonloader.namerule.NodeRegistry;
+import com.algoblock.tools.jsonloader.model.NodeRegistry;
 import com.google.gson.Gson;
 
 import java.io.InputStream;

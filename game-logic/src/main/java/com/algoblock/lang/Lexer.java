@@ -1,4 +1,4 @@
-package com.algoblock.lex;
+package com.algoblock.lang;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;

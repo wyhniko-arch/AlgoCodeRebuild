@@ -1,9 +1,9 @@
 package com.algoblock.tools.leveltree;
 
 import com.algoblock.tools.buffer.RowBuffer;
-import com.algoblock.tools.jsonloader.analysis.NodeRegistryLoader;
-import com.algoblock.tools.jsonloader.namerule.NodeEntry;
-import com.algoblock.tools.jsonloader.namerule.NodeRegistry;
+import com.algoblock.tools.jsonloader.loader.NodeRegistryLoader;
+import com.algoblock.tools.jsonloader.model.NodeEntry;
+import com.algoblock.tools.jsonloader.model.NodeRegistry;
 import com.algoblock.tools.savedata.Progress;
 
 import java.io.InputStream;

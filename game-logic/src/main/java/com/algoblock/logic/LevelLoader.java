@@ -1,14 +1,14 @@
 package com.algoblock.logic;
 
-import com.algoblock.lex.CommandDefinition;
-import com.algoblock.lex.StatementExecutor;
+import com.algoblock.lang.CommandDefinition;
+import com.algoblock.lang.StatementExecutor;
 import com.algoblock.structure.Abstract;
 import com.algoblock.structure.StructureMethod;
 import com.algoblock.tools.buffer.RowBuffer;
-import com.algoblock.tools.jsonloader.analysis.LevelConfigLoader;
-import com.algoblock.tools.jsonloader.analysis.StructureRegistryLoader;
-import com.algoblock.tools.jsonloader.namerule.LevelConfig;
-import com.algoblock.tools.jsonloader.namerule.StructureRegistry;
+import com.algoblock.tools.jsonloader.loader.LevelConfigLoader;
+import com.algoblock.tools.jsonloader.loader.StructureRegistryLoader;
+import com.algoblock.tools.jsonloader.model.LevelConfig;
+import com.algoblock.tools.jsonloader.model.StructureRegistry;
 
 import java.util.ArrayList;
 import java.util.List;

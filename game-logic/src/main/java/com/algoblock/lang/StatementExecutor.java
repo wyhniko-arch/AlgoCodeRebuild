@@ -1,4 +1,4 @@
-package com.algoblock.lex;
+package com.algoblock.lang;
 
 import com.algoblock.logic.LevelState;
 import com.algoblock.tools.buffer.RowBuffer;

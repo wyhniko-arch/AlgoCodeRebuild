@@ -1,6 +1,6 @@
-package com.algoblock.tools.jsonloader.analysis;
+package com.algoblock.tools.jsonloader.loader;
  
-import com.algoblock.tools.jsonloader.namerule.LevelConfig;
+import com.algoblock.tools.jsonloader.model.LevelConfig;
 import com.google.gson.Gson;
  
 import java.io.InputStream;

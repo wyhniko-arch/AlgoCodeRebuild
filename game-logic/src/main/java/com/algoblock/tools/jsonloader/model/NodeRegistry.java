@@ -1,4 +1,4 @@
-package com.algoblock.tools.jsonloader.namerule;
+package com.algoblock.tools.jsonloader.model;
 
 import com.google.gson.annotations.SerializedName;
 import java.util.List;

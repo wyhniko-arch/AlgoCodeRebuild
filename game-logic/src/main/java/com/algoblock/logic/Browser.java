@@ -1,6 +1,6 @@
 package com.algoblock.logic;
 
-import com.algoblock.api.ResponseBuilder;
+import com.algoblock.protocol.ResponseBuilder;
 import com.algoblock.tools.leveltree.LevelTree;
 import com.algoblock.tools.savedata.Progress;
 
