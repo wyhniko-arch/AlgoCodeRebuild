@@ -13,6 +13,10 @@ Windows端：
 
 其他端自己看
 
+更新了词法系统，加入了选关系统，游戏进度数据落盘存储
+
+注意！存档位置取决于运行时 cwd，不是相对 .bat 或 jar 本身
+
 # Q&A：
 
 ## cloud端拉取后是否需要运行gradle wrapper --gradle-version 8.9

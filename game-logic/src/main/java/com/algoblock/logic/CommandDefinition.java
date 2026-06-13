@@ -41,10 +41,6 @@ public class CommandDefinition {
         this.usedCount = 0;
         this.maxUses = 0;
     }
-    /** 兼容旧调用路径（无 argHints / tags），注册阶段可先用此构造，后续由 Logic 回填。 */
-    public CommandDefinition(String structId, String commandId, String pattern) {
-        this(structId, commandId, pattern, new String[0], new String[0]);
-    }
 
     // ---- 读取方法 ----
     public String getStructId() { return structId; }

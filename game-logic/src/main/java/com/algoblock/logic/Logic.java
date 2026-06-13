@@ -8,6 +8,9 @@ import com.algoblock.structure.StructureMethod;
 import com.algoblock.tools.jsonloader.analysis.LevelConfigLoader;
 import com.algoblock.tools.jsonloader.namerule.LevelConfig;
 import com.algoblock.tools.buffer.RowBuffer;
+import com.algoblock.tools.leveltree.LevelTree;
+import com.algoblock.tools.savedata.Progress;
+import com.algoblock.tools.savedata.SaveManager;
 
 import com.google.gson.JsonObject;
 
@@ -27,26 +30,40 @@ public class Logic {
         }
         return instance;
     }
-    
-    private Logic() {}
+
+    private Logic() {
+        // 启动时一次性加载存档并建立关卡树浏览状态（停留在根目录）
+        this.progress  = SaveManager.load();
+        this.levelTree = new LevelTree(this.progress);
+    }
+
+    // ==========================================
+    // 全局（与 Logic 同生命周期）：存档 + 关卡树浏览
+    // ==========================================
+    /** 玩家存档（解锁/通关数据），落盘到 saves/save.json。 */
+    private Progress progress;
+    /** 当前选关浏览状态，维护"当前所在路径"和"该层级可见节点"。 */
+    private LevelTree levelTree;
 
     // ==========================================
     // 关卡级字段（与关卡同生命周期）
     // ==========================================
     private RuntimeContext runtimeContext = null;
     private LevelConfig levelConfig = null;
+    /** 当前正在玩的关卡的完整路径（如 "tutorial/basics/step01"）；非关卡内为 null。 */
+    private String currentLevelPath = null;
     /** structId → Template 实例 */
     private Map<String, Abstract> structidToStructure = null;
     /** structId_commandId → CommandDefinition（快速定位） */
-    private Map<String, CommandDefinition> struct_command_idToCommand = null;    // 搜索优化，存储引用
+    private Map<String, CommandDefinition> struct_command_idToCommand = null;
     /** structId → CommandDefinition 列表（含 argHints / tags） */
-    private Map<String, List<CommandDefinition>> struct_idToCommands = null;    // 搜索优化，存储引用
+    private Map<String, List<CommandDefinition>> struct_idToCommands = null;
     /**
      * 标签 → 该标签下所有有效 CommandDefinition 的集合。
      * 在 initAllowedLimits 结束后构建，供 ArgHintResolver 的 cmd[tag] 使用。
-     * 注意：这是一个"视图索引"——不持有独立副本，指向同一批 CommandDefinition 对象。
      */
     private Map<String, List<CommandDefinition>> commandsByTag = null;
+
     // 关卡内交互状态
     private StringBuilder inputBuffer = new StringBuilder();
     private int selectedOptionIndex = 0;
@@ -56,21 +73,26 @@ public class Logic {
     // ==========================================
     // 唯一对外公开的方法
     // ==========================================
- 
+
     /**
      * 状态机统一入口。所有响应均为单元素 String[]，内容是 JSON 字符串。
      *
-     * 指令格式：
-     *   query:rowbuffer              — 返回 RowBuffer 全部调试内容（全局可用）
-     *   query:rowbuffer:N            — 返回最近 N 条调试内容（全局可用）
-     *   action:start:<levelIndex>    — 进入关卡（执行 loadLevel/register/init）
-     *   action:reset                 — 退出当前关卡，清空关卡状态
-     *   action:input:<token>         — 关卡内输入（字符 / tab / del / enter / up / down / exit）
-     *   query:nextcommandpart        — 关卡内词法分析，返回当前补全候选项，包含 selectedIndex
-     *   query:objects                — 关卡内所有活着游戏对象的 JSON 快照
-     *   query:levelinfo              — 关卡全局信息（剩余步数、buffer 指令等，随着更新扩充）
+     * 指令清单：
+     *   全局（任何时候可用）：
+     *     query:rowbuffer / query:rowbuffer:N
+     *     action:ResetSaveData             清空存档（删除磁盘文件后落盘空 Progress）
      *
-     * 返回值：字符串数组，空数组表示"执行了但无输出"。
+     *   选关界面（不在关卡时可用）：
+     *     query:browse                     当前路径与可见节点
+     *     action:start:<n>                 选择当前可见列表第 n 项（1-based 取模）
+     *     action:back                      返回上一层
+     *
+     *   关卡内（已 action:start 一关后可用）：
+     *     action:reset                     退出关卡回到选关
+     *     action:input:<token>             字符 / tab / del / enter / up / down / exit
+     *     query:nextcommandpart            词法补全
+     *     query:objects                    存活对象快照
+     *     query:levelinfo                  当前关卡信息
      */
     public static String[] interact(String command) {
         Logic logic = getInstance();
@@ -81,69 +103,64 @@ public class Logic {
     // ==========================================
     // 内部分发
     // ==========================================
- 
+
     private String[] dispatch(String command) {
-        if (command == null || command.isBlank()) {
-            return new String[0];
-        }
- 
-        // --- query:rowbuffer ---
+        if (command == null || command.isBlank()) return new String[0];
+
+        // ============ 全局指令（任何时候可用） ============
         if (command.equalsIgnoreCase("query:rowbuffer")) {
-            List<String> rows = RowBuffer.getRecent();
-            return rows.toArray(new String[0]);
+            return ResponseBuilder.debug(RowBuffer.getRecent());
         }
         if (command.toLowerCase().startsWith("query:rowbuffer:")) {
             String tail = command.substring("query:rowbuffer:".length()).trim();
             try {
-                int k = Integer.parseInt(tail);
-                List<String> rows = RowBuffer.getRecent(k);
-                return rows.toArray(new String[0]);
+                return ResponseBuilder.debug(RowBuffer.getRecent(Integer.parseInt(tail)));
             } catch (NumberFormatException e) {
-                return new String[]{"[Error] query:rowbuffer:<N> 中 N 必须是整数"};
+                return ResponseBuilder.error("query:rowbuffer:<N> 中 N 必须是整数");
             }
         }
- 
-        // --- action:start:<levelIndex> ---
-        if (command.toLowerCase().startsWith("action:start:")) {
-            String tail = command.substring("action:start:".length()).trim();
-            try {
-                int levelIndex = Integer.parseInt(tail);
-                return startLevel(levelIndex);
-            } catch (NumberFormatException e) {
-                return new String[]{"[Error] action:start:<levelIndex> 中关卡号必须是整数"};
-            }
+        if (command.equalsIgnoreCase("action:ResetSaveData")) {
+            // 重置存档：删除文件、回归空 Progress、把浏览状态重置到根
+            this.progress = SaveManager.reset();
+            this.levelTree = new LevelTree(this.progress);
+            clearLevelState(); // 防御性清空：哪怕在关卡内 reset 存档也直接踢回选关
+            return ResponseBuilder.ack("存档已重置");
         }
- 
-        // --- action:reset ---
-        if (command.equalsIgnoreCase("action:reset")) {
-            return resetLevel();
-        }
- 
-        // --- 以下指令只在关卡内有效 ---
+
+        // ============ 选关界面指令（仅未在关卡时可用） ============
         if (!inLevel) {
-            return new String[]{"[Info] 当前未在关卡中，请先执行 action:start:<levelIndex>"};
-        }
- 
-        // --- action:input:<token> ---
-        if (command.toLowerCase().startsWith("action:input:")) {
-            String token = command.substring("action:input:".length());
-            return handleInput(token);
-        }
- 
-        // --- query:nextcommandpart ---
-        if (command.equalsIgnoreCase("query:nextcommandpart")) {
-            return queryNextCommandPart();
+            if (command.equalsIgnoreCase("query:browse")) {
+                return buildBrowseResponse();
+            }
+            if (command.equalsIgnoreCase("action:back")) {
+                boolean moved = levelTree.back(progress);
+                return moved ? buildBrowseResponse() : ResponseBuilder.ack("已在根目录");
+            }
+            if (command.toLowerCase().startsWith("action:start:")) {
+                String tail = command.substring("action:start:".length()).trim();
+                try {
+                    int n = Integer.parseInt(tail);
+                    return handleStart(n);
+                } catch (NumberFormatException e) {
+                    return ResponseBuilder.error("action:start:<n> 中 n 必须是整数");
+                }
+            }
+            return ResponseBuilder.error("当前未在关卡中，可用：query:browse / action:start:<n> / action:back");
         }
 
-        // --- query:objects ---
+        // ============ 关卡内指令 ============
+        if (command.equalsIgnoreCase("action:reset"))         return resetLevel();
+        if (command.toLowerCase().startsWith("action:input:"))
+            return handleInput(command.substring("action:input:".length()));
+        if (command.equalsIgnoreCase("query:nextcommandpart")) return queryNextCommandPart();
         if (command.equalsIgnoreCase("query:objects")) {
-            List<JsonObject> snapshots = runtimeContext.collectAllSnapshots(structidToStructure);
-            return ResponseBuilder.objects(snapshots);
+            return ResponseBuilder.objects(runtimeContext.collectAllSnapshots(structidToStructure));
         }
-
-        // --- query:levelinfo ---
         if (command.equalsIgnoreCase("query:levelinfo")) {
             return ResponseBuilder.levelInfo(
+                    levelConfig.levelName,
+                    levelConfig.story,
+                    currentLevelPath,
                     currentStep,
                     levelConfig.stepsLimit,
                     runtimeContext.getBufferCommandIn(),
@@ -151,8 +168,34 @@ public class Logic {
                     levelConfig.inputDesc,
                     levelConfig.outputDesc);
         }
+        return ResponseBuilder.error("未知指令: " + command);
+    }
 
-        return new String[]{"[Error] 未知指令: " + command};
+    /** 把 LevelTree 当前可见节点映射成 ResponseBuilder.NodeView 并打包成 browse 响应。 */
+    private String[] buildBrowseResponse() {
+        List<LevelTree.VisibleNode> vis = levelTree.getVisibleNodes();
+        List<ResponseBuilder.NodeView> views = new ArrayList<>();
+        for (LevelTree.VisibleNode v : vis) {
+            String typeStr = (v.type == LevelTree.NodeType.FOLDER) ? "folder" : "level";
+            views.add(new ResponseBuilder.NodeView(v.name, typeStr, v.unlocked, v.cleared));
+        }
+        return ResponseBuilder.browse(levelTree.getCurrentPath(), views);
+    }
+
+    /**
+     * action:start:<n> 实现。
+     * 1-based 取模选可见节点。文件夹则进入返回新 browse；
+     * 关卡则真正开始。选中锁住节点时报错（不会自动跳过——透明给前端，由前端决定提示语）。
+     */
+    private String[] handleStart(int n) {
+        LevelTree.StartResult r = levelTree.start(n, progress);
+        switch (r.kind) {
+            case EMPTY:           return ResponseBuilder.error("当前层级无可见节点");
+            case LOCKED:          return ResponseBuilder.error("节点尚未解锁: " + r.lockedName);
+            case ENTERED_FOLDER:  return buildBrowseResponse();
+            case STARTED_LEVEL:   return startLevelByPath(r.levelPath);
+            default:              return ResponseBuilder.error("内部错误");
+        }
     }
     
 
@@ -160,43 +203,52 @@ public class Logic {
     // ==========================================
     // 关卡生命周期
     // ==========================================
- 
-    private String[] startLevel(int levelIndex) {
-        clearLevelState();  // 清空上一关卡状态
 
-        // 初始化关卡级字段
+    /**
+     * 用关卡完整路径启动关卡。路径来自 LevelTree.start(n) 的返回。
+     * 此函数本身不再做任何关卡可见性/解锁判定——可见性由 LevelTree 在 start(n) 前已过滤。
+     */
+    private String[] startLevelByPath(String levelPath) {
+        clearLevelState();
+
         runtimeContext = new RuntimeContext(this);
         struct_command_idToCommand = new HashMap<>();
         struct_idToCommands = new HashMap<>();
         structidToStructure = new HashMap<>();
+        commandsByTag = new HashMap<>();
         inputBuffer = new StringBuilder();
         selectedOptionIndex = 0;
         currentStep = 0;
+        currentLevelPath = levelPath;
         inLevel = true;
- 
-        loadLevel(levelIndex);
+
+        loadLevel(levelPath);
         registerStructures();
         initAllowedLimits();
         buildCommandsByTag();
         executeInitCommands();
- 
-        RowBuffer.append("\n--- 进入关卡主循环 (关卡 " + levelIndex + ") ---");
-        return new String[]{"[OK] 关卡 " + levelIndex + " 已加载，等待输入"};
+
+        RowBuffer.append("\n--- 进入关卡主循环 (关卡 " + levelPath + ") ---");
+        return ResponseBuilder.ack("关卡 " + levelPath + " 已加载，等待输入");
     }
- 
+
     private String[] resetLevel() {
         clearLevelState();
         RowBuffer.append("\n[Info] 关卡已重置");
-        return new String[]{"[OK] 已退出关卡"};
+        // 退出关卡回到选关界面：刷新一下当前层级的可见性（存档可能在通关时变化）
+        levelTree.enter(levelTree.getCurrentPath(), progress);
+        return ResponseBuilder.ack("已退出关卡");
     }
- 
+
     private void clearLevelState() {
         inLevel = false;
         runtimeContext = null;
         levelConfig = null;
+        currentLevelPath = null;
         struct_command_idToCommand = null;
         struct_idToCommands = null;
         structidToStructure = null;
+        commandsByTag = null;
         inputBuffer = new StringBuilder();
         selectedOptionIndex = 0;
         currentStep = 0;
@@ -229,15 +281,23 @@ public class Logic {
  
             if (runtimeContext.isWinConditionMet()) {
                 RowBuffer.append("[过关] 判定条件通过！游戏胜利！");
-                inLevel = false;
+                // 通关回写：本关 cleared、递归冒泡所有满足 clear_when 的祖先层级
+                LevelTree.applyClear(currentLevelPath, progress);
+                SaveManager.save(progress);
+                // 退回到本关父层级（让玩家看到刚解锁的兄弟节点 / 刚变成 cleared 的标记）
+                String parent = LevelTree.parentOf(currentLevelPath);
+                clearLevelState();
+                levelTree.enter(parent, progress);
                 return ResponseBuilder.win();
             }
- 
+
             currentStep++;
             if (currentStep >= levelConfig.stepsLimit) {
                 RowBuffer.append("[结算] 达到最大步数限制，游戏结束。");
-                inLevel = false;
-                return ResponseBuilder.fail("[FAIL] 达到最大步数限制，游戏结束");
+                String parent = LevelTree.parentOf(currentLevelPath);
+                clearLevelState();
+                levelTree.enter(parent, progress);
+                return ResponseBuilder.fail("达到最大步数限制，游戏结束");
             }
  
             RowBuffer.append("[循环] 判定未通过，继续循环。剩余步数: " + (levelConfig.stepsLimit - currentStep));
@@ -349,8 +409,8 @@ public class Logic {
     // 原有关卡逻辑，在重构完词法分析后逻辑不变
     // ==========================================
 
-    public void loadLevel(int levelIndex) {// 从外部加载器获取已解析好JSON数据的关卡实例
-        levelConfig = LevelConfigLoader.getConfig(levelIndex);
+    public void loadLevel(String levelPath) {
+        levelConfig = LevelConfigLoader.getConfig(levelPath);
         if (levelConfig.buffer != null) {
             runtimeContext.setBufferConfig(levelConfig.buffer.commandIn, levelConfig.buffer.commandOut);
         }
