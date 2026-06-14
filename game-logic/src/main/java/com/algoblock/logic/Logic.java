@@ -3,6 +3,7 @@ package com.algoblock.logic;
 import com.algoblock.context.RuntimeContext;
 import com.algoblock.lang.Lexer;
 import com.algoblock.lang.StatementExecutor;
+import com.algoblock.lang.CommandDefinition;
 import com.algoblock.protocol.ResponseBuilder;
 import com.algoblock.tools.buffer.RowBuffer;
 import com.algoblock.tools.leveltree.LevelTree;
@@ -86,7 +87,9 @@ public class Logic {
      *     action:input:<token>             字符 / tab / del / enter / up / down / exit
      *     query:nextcommandpart            词法补全
      *     query:objects                    存活对象快照
+     *     query:quota                      所有玩家可用指令的配额状态（含已用完）
      *     query:levelinfo                  当前关卡信息
+     *     query:aiContext                  AI 上下文（待实现：关卡目标 + 结构特性 + 当前局面）
      */
     public static String[] interact(String command) {
         Logic logic = getInstance();
@@ -157,6 +160,19 @@ public class Logic {
         if (command.equalsIgnoreCase("query:objects")) {
             return ResponseBuilder.objects(
                     state.runtimeContext.collectAllSnapshots(state.structidToStructure));
+        }
+        if (command.equalsIgnoreCase("query:quota")) {
+            // 玩家配额状态：只列 max>0 的指令，包括已用完的
+            java.util.List<ResponseBuilder.QuotaItem> items = new java.util.ArrayList<>();
+            for (java.util.List<CommandDefinition> defs : state.struct_idToCommands.values()) {
+                for (CommandDefinition def : defs) {
+                    if (def.getMaxUses() <= 0) continue; // 系统专用，玩家不可见
+                    items.add(new ResponseBuilder.QuotaItem(
+                            def.getStructId(), def.getCommandId(), def.getPattern(),
+                            def.getUsedCount(), def.getMaxUses()));
+                }
+            }
+            return ResponseBuilder.quota(items);
         }
         if (command.equalsIgnoreCase("query:levelinfo")) {
             return ResponseBuilder.levelInfo(

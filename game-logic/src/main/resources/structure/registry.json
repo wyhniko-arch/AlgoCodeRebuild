@@ -1,4 +1,6 @@
 {
+  "Command": "command/GeneralCommand.java",
+  "PQ": "pq/FakePQ.java",
   "Queue": "queue/FakeQueue.java",
   "Stack": "stack/FakeStack.java"
 }

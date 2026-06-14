@@ -12,6 +12,26 @@ import com.google.gson.JsonObject;
  * { "ok": true|false, "type": "...", "data": { ... } }
  * interact() 返回的 String[] 始终只含一个元素，即该 JSON 字符串。
  */
+
+/* ok 字段的作用
+    每个响应顶层都有 "ok": true|false。它的作用：
+    让前端 / 调用方在不解析 type 的情况下，仅凭一个布尔字段就能判断"这次调用成功还是失败"。这是 HTTP 状态码模式的迷你版。
+
+        说明：每条响应的 ok 都和 type 一一对应（type 是 error/fail 就 ok=false，否则 ok=true）。
+        如果站在这个角度看，ok 是冗余的——前端完全可以靠 type==="error"||type==="fail" 判断。
+    
+    具体使用场景：
+    前端代码可以统一写 if (resp.ok) { ... 正常处理 ... } else { 弹错误 toast }，不必为每种 type 都写一个分支
+    失败的 type（error、fail）ok=false，其余 ok=true
+
+    当前两个 ok=false 的位置：
+
+    error() — 非法指令、参数错误、未解锁节点等
+    fail() — 步数耗尽
+
+    其它都是 ok=true，即使是 win、debug 这种"业务结果"或"调试输出"。
+    它的价值 = 把"出错了"和"业务发生了什么"两个维度分开。ok 答出错与否，type 答业务语义。
+*/
 public class ResponseBuilder {
 
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -157,6 +177,59 @@ public class ResponseBuilder {
         public final boolean cleared;
         public NodeView(String name, String type, boolean unlocked, boolean cleared) {
             this.name = name; this.type = type; this.unlocked = unlocked; this.cleared = cleared;
+        }
+    }
+
+    /**
+     * 玩家配额状态。
+     *
+     * data：
+     * {
+     *   "items": [
+     *     { "structId":"Queue", "commandId":"pop",  "pattern":"Queue[@].pop",  "used":3, "max":6, "remaining":3, "exhausted":false },
+     *     { "structId":"Queue", "commandId":"add",  "pattern":"Queue[@].add",  "used":1, "max":1, "remaining":0, "exhausted":true  },
+     *     ...
+     *   ]
+     * }
+     *
+     * 只包含"玩家初始有配额（max>0）"的指令：
+     *   - max>0 且 remaining>0  → 仍可用
+     *   - max>0 且 remaining==0 → 已用完（前端渲染为 disabled）
+     * max==0 的指令（系统专用、玩家不可见）不出现在此列表。
+     */
+    public static String[] quota(java.util.List<QuotaItem> items) {
+        JsonObject root = base(true, "quota");
+        JsonObject data = new JsonObject();
+        JsonArray arr = new JsonArray();
+        for (QuotaItem q : items) {
+            JsonObject o = new JsonObject();
+            o.addProperty("structId",  q.structId);
+            o.addProperty("commandId", q.commandId);
+            o.addProperty("pattern",   q.pattern);
+            o.addProperty("used",      q.used);
+            o.addProperty("max",       q.max);
+            o.addProperty("remaining", q.max - q.used);
+            o.addProperty("exhausted", q.used >= q.max);
+            arr.add(o);
+        }
+        data.add("items", arr);
+        root.add("data", data);
+        return wrap(root);
+    }
+
+    /** quota 用的轻量结构体，避免 ResponseBuilder 反向依赖 CommandDefinition。 */
+    public static class QuotaItem {
+        public final String structId;
+        public final String commandId;
+        public final String pattern;
+        public final int    used;
+        public final int    max;
+        public QuotaItem(String structId, String commandId, String pattern, int used, int max) {
+            this.structId  = structId;
+            this.commandId = commandId;
+            this.pattern   = pattern;
+            this.used      = used;
+            this.max       = max;
         }
     }
 

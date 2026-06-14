@@ -1,0 +1,5 @@
+{
+  "clearBuffer": "com.algoblock.structure.command.method.ClearBuffer",
+  "in": "com.algoblock.structure.command.method.In",
+  "out": "com.algoblock.structure.command.method.Out"
+}

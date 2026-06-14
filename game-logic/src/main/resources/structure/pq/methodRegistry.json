@@ -1,0 +1,10 @@
+{
+  "initEmpty":      "com.algoblock.structure.pq.method.InitEmpty",
+  "initFull":       "com.algoblock.structure.pq.method.InitFull",
+  "initFullConfig": "com.algoblock.structure.pq.method.InitFullConfig",
+  "delete":         "com.algoblock.structure.pq.method.Delete",
+  "copy":           "com.algoblock.structure.pq.method.Copy",
+  "equal":          "com.algoblock.structure.pq.method.Equal",
+  "push":           "com.algoblock.structure.pq.method.Push",
+  "pop":            "com.algoblock.structure.pq.method.Pop"
+}
