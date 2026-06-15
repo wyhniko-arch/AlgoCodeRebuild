@@ -12,7 +12,7 @@ import java.util.Map;
 
 public class StructureRegistryLoader {
     private static final Gson gson = new Gson();
-    private static final String REGISTRY_PATH = "structure/registry.json";
+    private static final String REGISTRY_PATH = "structure/structureRegistry.json";
 
     public static StructureRegistry getRegistry() {
         InputStream is = StructureRegistryLoader.class.getClassLoader().getResourceAsStream(REGISTRY_PATH);

@@ -20,7 +20,7 @@ import java.util.Set;
  * AI 描述文本的慢加载缓存。
  *
  * 数据来源（与代码完全解耦）：
- *   resources/structure/description.json
+ *   resources/structure/structureDescription.json
  *     格式：{ "Queue": "...", "Stack": "...", ... }
  *
  *   resources/structure/{structId 小写}/methodDescription.json
@@ -97,7 +97,7 @@ public final class AiDescription {
 
     private static synchronized void ensureStructureMapLoaded() {
         if (structureDescriptions != null) return;
-        Map<String, String> loaded = readJsonMap("structure/description.json");
+        Map<String, String> loaded = readJsonMap("structure/structureDescription.json");
         structureDescriptions = (loaded == null)
                 ? Collections.emptyMap()   // 即使缺失也填空 Map，避免反复尝试
                 : loaded;
