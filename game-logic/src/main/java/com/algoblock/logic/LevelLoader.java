@@ -185,4 +185,14 @@ public final class LevelLoader {
             StatementExecutor.execute(state, judge, false);
         }
     }
+
+    /**
+     * 预加载 AI 描述文本：在关卡装填末尾调用一次，
+     * 把本关用到的所有结构的 description / methodDescription 装入 AiDescription 缓存。
+     * 后续 ContextBuilder 拼字符串时直接命中缓存。
+     */
+    public static void preloadAiDescriptions(LevelState state) {
+        com.algoblock.tools.aidescription.AiDescription.ensureLoaded(
+        state.structidToStructure.keySet());
+    }
 }

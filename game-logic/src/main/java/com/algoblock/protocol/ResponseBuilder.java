@@ -232,7 +232,28 @@ public class ResponseBuilder {
             this.max       = max;
         }
     }
-
+    
+    /**
+     * AI 上下文响应：query:aiContext 的产物。
+     *
+     * 用途：把当前关卡的"事实信息"装配成单段 Markdown 文本，
+     * 前端拿去拼到自己的 prompt 里，喂给"过拟合"AI。
+     *
+     * data：
+     * {
+     *   "text": "...装配好的整段文本..."
+     * }
+     *
+     * 由 ContextBuilder.build(state) 产出 text，本方法仅负责 JSON 包装。
+     */
+    public static String[] aiContext(String text) {
+        JsonObject root = base(true, "aiContext");
+        JsonObject data = new JsonObject();
+        data.addProperty("text", text == null ? "" : text);
+        root.add("data", data);
+        return wrap(root);
+    }
+ 
     // ==========================================
     // 内部工具
     // ==========================================

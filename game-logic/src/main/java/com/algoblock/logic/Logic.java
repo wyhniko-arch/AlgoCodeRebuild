@@ -5,6 +5,7 @@ import com.algoblock.lang.Lexer;
 import com.algoblock.lang.StatementExecutor;
 import com.algoblock.lang.CommandDefinition;
 import com.algoblock.protocol.ResponseBuilder;
+import com.algoblock.protocol.ContextBuilder;
 import com.algoblock.tools.buffer.RowBuffer;
 import com.algoblock.tools.leveltree.LevelTree;
 import com.algoblock.tools.savedata.Progress;
@@ -174,6 +175,9 @@ public class Logic {
             }
             return ResponseBuilder.quota(items);
         }
+        if (command.equalsIgnoreCase("query:aiContext")) {
+            return ResponseBuilder.aiContext(ContextBuilder.build(state));
+        }
         if (command.equalsIgnoreCase("query:levelinfo")) {
             return ResponseBuilder.levelInfo(
                     state.levelConfig.levelName,
@@ -209,7 +213,7 @@ public class Logic {
         LevelLoader.initAllowedLimits(state);
         LevelLoader.buildCommandsByTag(state);
         LevelLoader.executeInitCommands(state);
-
+        LevelLoader.preloadAiDescriptions(state);   // 新增
         RowBuffer.append("\n--- 进入关卡主循环 (关卡 " + levelPath + ") ---");
         return ResponseBuilder.ack("关卡 " + levelPath + " 已加载，等待输入");
     }
