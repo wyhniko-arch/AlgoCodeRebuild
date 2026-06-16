@@ -1,11 +1,12 @@
 {
   "clear_when": [1, 2, 3, 4],
-  "clear_when_skippable": 1,
+  "clear_when_skippable": 0,
   "nodes": [
     { "index": 1, "name": "queue", "requires": [] },
     { "index": 2, "name": "stack", "requires": [1] },
     { "index": 3, "name": "priorityQueue", "requires": [2] },
     { "index": 4, "name": "array", "requires": [2] },
-    { "index": 5, "name": "mixture", "requires": [3,4], "skippable": 1, "hidden": true }
+    { "index": 5, "name": "mixture01", "requires": [1,2], "hidden": true },
+    { "index": 6, "name": "mixture02", "requires": [3,4], "skippable": 1, "hidden": true }
   ]
 }

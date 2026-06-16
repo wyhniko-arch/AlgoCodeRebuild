@@ -1,0 +1,26 @@
+{
+  "level_name": "SEED02",
+  "story": "一个东西可以从一个地方，经过一个看不见的地方，到达另一个地方，或同一个地方。",
+  "input_desc": "Stack(A) = (1,2,3), Stack(B) = (), Stack(C) = () ; >>(A)>>",
+  "output_desc": "Stack(A) = (2,3,1)",
+  "struct_used": ["Stack"],
+  "commands_allowed": [
+    {"struct_id": "Stack", "command_id": "push", "max_uses": 3},
+    {"struct_id": "Stack", "command_id": "pop", "max_uses": 3}
+  ],
+  "init_commands": [
+    "Stack[(A),[(1,2,3)]]",
+    "Stack[(B)]",
+    "Stack[(C)]"
+  ],
+  "judge_commands": [
+    "Stack[(X),[(2,3,1)]]",
+    "Stack.equal[(A),(X)]",
+    "Stack[(X)].delete"
+  ],
+  "buffer": {
+    "command_in": "Stack[(A)].push",
+    "command_out": "Stack[(A)].pop"
+  },
+  "steps_limit": 6
+}

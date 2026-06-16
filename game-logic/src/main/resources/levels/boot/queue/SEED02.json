@@ -12,11 +12,9 @@
     "Queue[(A),[(1,2,3,4)]]"
   ],
   "judge_commands": [
-    "Queue[(A)].copy[(X)]",
-    "Queue[(Y),[(4,1,2,3)]]",
-    "Queue.equal[(X),(Y)]",
-    "Queue[(X)].delete",
-    "Queue[(Y)].delete"
+    "Queue[(X),[(4,1,2,3)]]",
+    "Queue.equal[(A),(X)]",
+    "Queue[(X)].delete"
   ],
   "buffer": {
     "command_in": "Queue[(A)].add",

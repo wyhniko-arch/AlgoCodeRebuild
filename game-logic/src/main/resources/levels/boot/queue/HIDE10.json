@@ -1,6 +1,6 @@
 {
   "level_name": "HIDE10",
-  "story": "取出来的东西，它会先去一个你看不见的地方。你看不见它，但它存在。",
+  "story": "",
   "input_desc": "Queue(A) = (), Queue(B) = (1,2), Queue(C) = (0,0,0) ; >>(C)>>",
   "output_desc": "Queue(A) = (2), Queue(B) = (1)",
   "struct_used": ["Queue"],

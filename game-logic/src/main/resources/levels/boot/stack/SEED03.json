@@ -1,0 +1,26 @@
+{
+  "level_name": "SEED03",
+  "story": "看不见不等于不存在。后面所有事情，都从这一句话开始。",
+  "input_desc": "Stack(A) = (1,2,3), Stack(B) = (), Stack(C) = () ; >>(A)>>",
+  "output_desc": "Stack(A) = (3,2,1)",
+  "struct_used": ["Stack"],
+  "commands_allowed": [
+    {"struct_id": "Stack", "command_id": "push", "max_uses": 4},
+    {"struct_id": "Stack", "command_id": "pop", "max_uses": 4}
+  ],
+  "init_commands": [
+    "Stack[(A),[(1,2,3)]]",
+    "Stack[(B)]",
+    "Stack[(C)]"
+  ],
+  "judge_commands": [
+    "Stack[(X),[(3,2,1)]]",
+    "Stack.equal[(A),(X)]",
+    "Stack[(X)].delete"
+  ],
+  "buffer": {
+    "command_in": "Stack[(A)].push",
+    "command_out": "Stack[(A)].pop"
+  },
+  "steps_limit": 8
+}

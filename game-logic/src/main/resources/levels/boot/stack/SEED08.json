@@ -1,0 +1,27 @@
+{
+  "level_name": "SEED08",
+  "story": "",
+  "input_desc": "Queue(A) = (1,5,4,2,3), Stack(B) = () ; >>(B)>>",
+  "output_desc": "Stack(B) = (1,2,3,4)",
+  "struct_used": ["Stack","Queue"],
+  "commands_allowed": [
+    {"struct_id": "Stack", "command_id": "push", "max_uses": 0},
+    {"struct_id": "Stack", "command_id": "pop", "max_uses": 0},
+    {"struct_id": "Queue", "command_id": "add", "max_uses": 8},
+    {"struct_id": "Queue", "command_id": "pop", "max_uses": 8}
+  ],
+  "init_commands": [
+    "Queue[(A),[(1,5,4,2,3)]]",
+    "Stack[(B)]"
+  ],
+  "judge_commands": [
+    "Stack[(Y),[(1,2,3,4)]]",
+    "Stack.equal[(B),(Y)]",
+    "Stack[(Y)].delete"
+  ],
+  "buffer": {
+    "command_in": "Stack[(B)].push",
+    "command_out": "Stack[(B)].pop"
+  },
+  "steps_limit": 8
+}

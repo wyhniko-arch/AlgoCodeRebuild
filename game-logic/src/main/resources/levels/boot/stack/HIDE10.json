@@ -1,0 +1,32 @@
+{
+  "level_name": "HIDE10",
+  "story": "",
+  "input_desc": "Stack(A) = (1,2,3), Stack(B) = (1,2,3), Stack(C) = (1,2,3); >>(C)>>",
+  "output_desc": "Stack(A) = (1,1,1), Stack(B) = (2,2,2), Stack(C) = (3,3,3)",
+  "struct_used": ["Stack"],
+  "commands_allowed": [
+    {"struct_id": "Stack", "command_id": "push", "max_uses": 18},
+    {"struct_id": "Stack", "command_id": "pop", "max_uses": 18}
+  ],
+  "init_commands": [
+    "Stack[(A),[(1,2,3)]]",
+    "Stack[(B),[(1,2,3)]]",
+    "Stack[(C),[(1,2,3)]]"
+  ],
+  "judge_commands": [
+    "Stack[(X),[(1,1,1)]]",
+    "Stack[(Y),[(2,2,2)]]",
+    "Stack[(Z),[(3,3,3)]]",
+    "Stack.equal[(A),(X)]",
+    "Stack.equal[(B),(Y)]",
+    "Stack.equal[(C),(Z)]",
+    "Stack[(X)].delete",
+    "Stack[(Y)].delete",
+    "Stack[(Z)].delete"
+  ],
+  "buffer": {
+    "command_in": "Stack[(C)].push",
+    "command_out": "Stack[(C)].pop"
+  },
+  "steps_limit": 18
+}

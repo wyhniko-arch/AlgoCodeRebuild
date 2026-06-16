@@ -1,6 +1,6 @@
 {
   "level_name": "HIDE12",
-  "story": "看不见不等于不存在。后面所有事情，都从这一句话开始。",
+  "story": "",
   "input_desc": "Queue(A) = (5,1,2), Queue(B) = (3,6,9), Queue(C) = (4,7,8) ; >>(B)>>",
   "output_desc": "Queue(A) = (1,2,3), Queue(B) = (4,5,6), Queue(C) = (7,8,9)",
   "struct_used": ["Queue"],

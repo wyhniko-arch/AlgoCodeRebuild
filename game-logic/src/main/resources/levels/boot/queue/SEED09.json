@@ -13,10 +13,8 @@
     "Queue[(B),[(7,6,5,4,3,2,1)]]"
   ],
   "judge_commands": [
-    "Queue[(B)].copy[(X)]",
     "Queue[(Y),[(1,7,6,5,3,2,4)]]",
-    "Queue.equal[(X),(Y)]",
-    "Queue[(X)].delete",
+    "Queue.equal[(B),(Y)]",
     "Queue[(Y)].delete"
   ],
   "buffer": {

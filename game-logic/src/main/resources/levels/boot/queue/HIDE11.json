@@ -1,6 +1,6 @@
 {
   "level_name": "HIDE11",
-  "story": "一个东西可以从一个地方，经过一个看不见的地方，到达另一个地方。",
+  "story": "",
   "input_desc": "Queue(A) = (1,2), Queue(B) = (3,4), Queue(C) = (0,0,0) ; >>(C)>>",
   "output_desc": "Queue(A) = (3,4), Queue(B) = (0,0)",
   "struct_used": ["Queue"],

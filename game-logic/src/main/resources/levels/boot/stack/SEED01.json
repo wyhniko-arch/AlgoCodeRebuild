@@ -1,0 +1,25 @@
+{
+  "level_name": "SEED01",
+  "story": "取出来的东西，它会先去一个你看不见的地方。你看不见它，但它存在。",
+  "input_desc": "Stack(A) = (1,2,3,4,5) ; >>(B)>>",
+  "output_desc": "Stack(B) = (5,4,3)",
+  "struct_used": ["Stack"],
+  "commands_allowed": [
+    {"struct_id": "Stack", "command_id": "push", "max_uses": 0},
+    {"struct_id": "Stack", "command_id": "pop", "max_uses": 3}
+  ],
+  "init_commands": [
+    "Stack[(A),[(1,2,3,4,5)]]",
+    "Stack[(B)]"
+  ],
+  "judge_commands": [
+    "Stack[(Y),[(5,4,3)]]",
+    "Stack.equal[(B),(Y)]",
+    "Stack[(Y)].delete"
+  ],
+  "buffer": {
+    "command_in": "Stack[(B)].push",
+    "command_out": "Stack[(B)].pop"
+  },
+  "steps_limit": 3
+}

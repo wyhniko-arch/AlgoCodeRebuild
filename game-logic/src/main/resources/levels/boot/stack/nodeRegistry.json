@@ -1,0 +1,16 @@
+{
+  "clear_when": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+  "clear_when_skippable": 0,
+  "nodes": [
+    { "index": 1, "name": "SEED01", "requires": [] },
+    { "index": 2, "name": "SEED02", "requires": [1] },
+    { "index": 3, "name": "SEED03", "requires": [2] },
+    { "index": 4, "name": "SEED04", "requires": [3] },
+    { "index": 5, "name": "SEED05", "requires": [4] },
+    { "index": 6, "name": "SEED06", "requires": [5] },
+    { "index": 7, "name": "SEED07", "requires": [6] },
+    { "index": 8, "name": "SEED08", "requires": [7] },
+    { "index": 9, "name": "SEED09", "requires": [8] },
+    { "index": 10, "name": "HIDE10", "requires": [9], "hidden": true }
+  ]
+}
