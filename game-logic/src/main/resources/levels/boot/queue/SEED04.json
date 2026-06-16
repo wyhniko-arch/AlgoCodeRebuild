@@ -1,0 +1,27 @@
+{
+  "level_name": "SEED04",
+  "story": "我不会教你我们的语言。",
+  "input_desc": "Queue(A) = (1,2,3), Queue(B) = (3,3,3) ; >>(B)>>",
+  "output_desc": "Queue(B) = (3,1,3,2,3)",
+  "struct_used": ["Queue"],
+  "commands_allowed": [
+    {"struct_id": "Queue", "command_id": "add", "max_uses": 0},
+    {"struct_id": "Queue", "command_id": "pop", "max_uses": 4}
+  ],
+  "init_commands": [
+    "Queue[(A),[(1,2,3)]]",
+    "Queue[(B),[(3,3,3)]]"
+  ],
+  "judge_commands": [
+    "Queue[(B)].copy[(X)]",
+    "Queue[(Y),[(3,1,3,2,3)]]",
+    "Queue.equal[(X),(Y)]",
+    "Queue[(X)].delete",
+    "Queue[(Y)].delete"
+  ],
+  "buffer": {
+    "command_in": "Queue[(B)].add",
+    "command_out": "Queue[(B)].pop"
+  },
+  "steps_limit": 4
+}

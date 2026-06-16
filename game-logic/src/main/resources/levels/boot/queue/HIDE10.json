@@ -1,0 +1,29 @@
+{
+  "level_name": "HIDE10",
+  "story": "取出来的东西，它会先去一个你看不见的地方。你看不见它，但它存在。",
+  "input_desc": "Queue(A) = (), Queue(B) = (1,2), Queue(C) = (0,0,0) ; >>(C)>>",
+  "output_desc": "Queue(A) = (2), Queue(B) = (1)",
+  "struct_used": ["Queue"],
+  "commands_allowed": [
+    {"struct_id": "Queue", "command_id": "add", "max_uses": 2},
+    {"struct_id": "Queue", "command_id": "pop", "max_uses": 5}
+  ],
+  "init_commands": [
+    "Queue[(A)]",
+    "Queue[(B),[(1,2)]]",
+    "Queue[(C),[(0,0,0)]]"
+  ],
+  "judge_commands": [
+    "Queue[(X),[(2)]]",
+    "Queue[(Y),[(1)]]",
+    "Queue.equal[(A),(X)]",
+    "Queue.equal[(B),(Y)]",
+    "Queue[(X)].delete",
+    "Queue[(Y)].delete"
+  ],
+  "buffer": {
+    "command_in": "Queue[(C)].add",
+    "command_out": "Queue[(C)].pop"
+  },
+  "steps_limit": 7
+}

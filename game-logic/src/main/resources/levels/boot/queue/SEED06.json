@@ -1,0 +1,27 @@
+{
+  "level_name": "SEED06",
+  "story": "但你不需要它。我会用一种没有被我们毁掉的东西和你说话。",
+  "input_desc": "Queue(A) = (), Queue(B) = (1,2,3,5,6,4) ; >>(B)>>",
+  "output_desc": "Queue(B) = (4,5,6)",
+  "struct_used": ["Queue"],
+  "commands_allowed": [
+    {"struct_id": "Queue", "command_id": "add", "max_uses": 5},
+    {"struct_id": "Queue", "command_id": "pop", "max_uses": 0}
+  ],
+  "init_commands": [
+    "Queue[(A)]",
+    "Queue[(B),[(1,2,3,5,6,4)]]"
+  ],
+  "judge_commands": [
+    "Queue[(B)].copy[(X)]",
+    "Queue[(Y),[(4,5,6)]]",
+    "Queue.equal[(X),(Y)]",
+    "Queue[(X)].delete",
+    "Queue[(Y)].delete"
+  ],
+  "buffer": {
+    "command_in": "Queue[(B)].add",
+    "command_out": "Queue[(B)].pop"
+  },
+  "steps_limit": 5
+}

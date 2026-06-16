@@ -1,0 +1,27 @@
+{
+  "level_name": "SEED01",
+  "story": "如果你读到这里，说明你已经能读。这一点比你想象的更重要。",
+  "input_desc": "Queue(A) = (1,2,3,4,5) ; >>(B)>>",
+  "output_desc": "Queue(B) = (1,2,3)",
+  "struct_used": ["Queue"],
+  "commands_allowed": [
+    {"struct_id": "Queue", "command_id": "add", "max_uses": 0},
+    {"struct_id": "Queue", "command_id": "pop", "max_uses": 3}
+  ],
+  "init_commands": [
+    "Queue[(A),[(1,2,3,4,5)]]",
+    "Queue[(B)]"
+  ],
+  "judge_commands": [
+    "Queue[(B)].copy[(X)]",
+    "Queue[(Y),[(1,2,3)]]",
+    "Queue.equal[(X),(Y)]",
+    "Queue[(X)].delete",
+    "Queue[(Y)].delete"
+  ],
+  "buffer": {
+    "command_in": "Queue[(B)].add",
+    "command_out": "Queue[(B)].pop"
+  },
+  "steps_limit": 3
+}

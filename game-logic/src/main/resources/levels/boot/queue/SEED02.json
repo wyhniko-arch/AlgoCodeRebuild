@@ -1,0 +1,26 @@
+{
+  "level_name": "SEED02",
+  "story": "我不能假定你是谁。",
+  "input_desc": "Queue(A) = (1,2,3,4) ; >>(A)>>",
+  "output_desc": "Queue(A) = (4,1,2,3)",
+  "struct_used": ["Queue"],
+  "commands_allowed": [
+    {"struct_id": "Queue", "command_id": "add", "max_uses": 0},
+    {"struct_id": "Queue", "command_id": "pop", "max_uses": 3}
+  ],
+  "init_commands": [
+    "Queue[(A),[(1,2,3,4)]]"
+  ],
+  "judge_commands": [
+    "Queue[(A)].copy[(X)]",
+    "Queue[(Y),[(4,1,2,3)]]",
+    "Queue.equal[(X),(Y)]",
+    "Queue[(X)].delete",
+    "Queue[(Y)].delete"
+  ],
+  "buffer": {
+    "command_in": "Queue[(A)].add",
+    "command_out": "Queue[(A)].pop"
+  },
+  "steps_limit": 3
+}
